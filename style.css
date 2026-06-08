@@ -1365,6 +1365,91 @@ textarea.form-ctrl { resize: vertical; min-height: 72px; }
 /* === PREFERS-REDUCED-MOTION ===
    Accessibility: strip all animation for users who need it. */
 
+/* ── MOBILE POLISH ──────────────────────────────────────────────── */
+
+/* Topbar: title fills middle, never squeezes the action area */
+.page-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-right { flex-shrink: 0; }
+
+/* stats-row-4: 2×2 grid on tablet / phone */
+@media (max-width: 880px) {
+  .stats-row-4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 380px) {
+  .stats-row-4 { grid-template-columns: 1fr; }
+}
+
+/* Dash greeting: stack vertically on phone */
+@media (max-width: 640px) {
+  .dash-greeting { flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 16px; }
+  .dash-greeting-name { font-size: 19px; }
+  .dash-summary { text-align: left; font-size: 12px; }
+}
+
+/* iOS safari: prevent auto-zoom on input focus (requires 16px) */
+@media (max-width: 880px) {
+  .form-ctrl { font-size: 16px !important; }
+}
+
+/* Touch targets: comfortable for fingers */
+@media (max-width: 880px) {
+  .btn     { min-height: 36px; }
+  .btn-sm  { min-height: 32px; }
+  .btn-xs  { min-height: 30px; padding: 4px 10px; font-size: 12px; }
+  .chip    { min-height: 32px; padding: 5px 13px; }
+  .nav-item { min-height: 44px; }
+  .close-btn { width: 36px; height: 36px; }
+}
+
+/* Drawer: tighter padding + footer wraps on narrow screens */
+@media (max-width: 560px) {
+  .drawer-body { padding: 16px; }
+  .drawer-head, .drawer-foot { padding: 12px 16px; }
+  .drawer-foot { flex-wrap: wrap; }
+  .drawer-foot .btn { flex: 1; justify-content: center; min-width: 80px; }
+}
+
+/* Table action column: rows are already clickable, hide on mobile */
+@media (max-width: 640px) {
+  .td-actions { display: none; }
+  .col-hide-sm { display: none !important; }
+}
+
+/* Command palette: near full-width, lower position on phone */
+@media (max-width: 560px) {
+  .cmd-overlay { padding-top: 5vh; }
+  .cmd-modal { margin: 0 8px; }
+  .cmd-body { max-height: 58vh; }
+}
+
+/* Notification panel: don't bleed off edge on narrow screens */
+@media (max-width: 400px) {
+  .notif-panel { width: calc(100vw - 20px); right: -4px; }
+}
+
+/* Overdue alert: wrap on very small screens */
+@media (max-width: 400px) {
+  .overdue-alert { flex-wrap: wrap; }
+  .overdue-alert .btn { width: 100%; justify-content: center; }
+}
+
+/* Timeline: badge hidden on tiny screens to prevent overflow */
+@media (max-width: 400px) {
+  .timeline-item .badge { display: none; }
+}
+
+/* Topbar gap + padding reduction on small phones */
+@media (max-width: 380px) {
+  .topbar { padding: 0 10px; gap: 6px; }
+  .topbar-right { gap: 4px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

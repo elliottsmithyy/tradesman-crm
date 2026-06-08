@@ -70,9 +70,9 @@
           <thead>
             <tr>
               <th>Number</th>
-              <th>Customer</th>
-              <th>Issued</th>
-              <th>Due</th>
+              <th class="col-hide-sm">Customer</th>
+              <th class="col-hide-sm">Issued</th>
+              <th class="col-hide-sm">Due</th>
               <th>Total</th>
               <th>Status</th>
               <th></th>
@@ -226,9 +226,9 @@ function render() {
     const isOverdue = inv.status !== 'paid' && inv.dueAt && inv.dueAt < todayISO();
     return `<tr onclick="openDetail('${inv.id}')" style="cursor:pointer">
       <td><span style="font-weight:600;font-variant-numeric:tabular-nums">${escHtml(inv.number)}</span></td>
-      <td class="td-muted">${escHtml(c?.name || '—')}</td>
-      <td class="td-muted td-num">${fmtDateShort(inv.issuedAt)}</td>
-      <td class="td-muted td-num${isOverdue ? '" style="color:var(--s-due)' : ''}">${fmtDateShort(inv.dueAt)}</td>
+      <td class="td-muted col-hide-sm">${escHtml(c?.name || '—')}</td>
+      <td class="td-muted td-num col-hide-sm">${fmtDateShort(inv.issuedAt)}</td>
+      <td class="td-muted td-num col-hide-sm${isOverdue ? '" style="color:var(--s-due)' : ''}">${fmtDateShort(inv.dueAt)}</td>
       <td class="td-num" style="font-weight:600">${fmtMoney(inv.total)}</td>
       <td>${badge(inv.status)}</td>
       <td class="td-actions" onclick="event.stopPropagation()">

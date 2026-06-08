@@ -46,8 +46,8 @@
           <thead>
             <tr>
               <th>Job</th>
-              <th>Customer</th>
-              <th>Date</th>
+              <th class="col-hide-sm">Customer</th>
+              <th class="col-hide-sm">Date</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -187,8 +187,8 @@ function render(q = '') {
         ${isToday ? `<span style="font-size:10.5px;font-weight:600;color:var(--accent);margin-left:7px;text-transform:uppercase;letter-spacing:0.04em">Today</span>` : ''}
         ${j.description ? `<br><span class="td-muted" style="font-size:12px">${escHtml(j.description.slice(0, 60))}${j.description.length > 60 ? '...' : ''}</span>` : ''}
       </td>
-      <td class="td-muted">${escHtml(c?.name || '—')}</td>
-      <td class="td-muted td-num">${fmtDateShort(j.date)}</td>
+      <td class="td-muted col-hide-sm">${escHtml(c?.name || '—')}</td>
+      <td class="td-muted td-num col-hide-sm">${fmtDateShort(j.date)}</td>
       <td>${badge(j.status)}</td>
       <td class="td-actions" onclick="event.stopPropagation()">
         <button class="btn btn-ghost btn-sm" onclick="openEdit('${j.id}')">Edit</button>

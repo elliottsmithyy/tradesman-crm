@@ -35,9 +35,9 @@
             <tr>
               <th>Name</th>
               <th>Phone</th>
-              <th>Email</th>
-              <th>Address</th>
-              <th>Jobs</th>
+              <th class="col-hide-sm">Email</th>
+              <th class="col-hide-sm">Address</th>
+              <th class="col-hide-sm">Jobs</th>
               <th></th>
             </tr>
           </thead>
@@ -154,9 +154,9 @@ function render(filter = '') {
     return `<tr onclick="openDetail('${c.id}')" style="cursor:pointer">
       <td><span style="font-weight:500">${escHtml(c.name)}</span></td>
       <td class="td-muted">${escHtml(c.phone || '—')}</td>
-      <td class="td-muted">${escHtml(c.email || '—')}</td>
-      <td class="td-muted" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.address || '—')}</td>
-      <td class="td-muted">${jobCount}</td>
+      <td class="td-muted col-hide-sm">${escHtml(c.email || '—')}</td>
+      <td class="td-muted col-hide-sm" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.address || '—')}</td>
+      <td class="td-muted col-hide-sm">${jobCount}</td>
       <td class="td-actions" onclick="event.stopPropagation()">
         <button class="btn btn-ghost btn-sm" onclick="openEdit('${c.id}')">Edit</button>
       </td>

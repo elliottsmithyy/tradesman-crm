@@ -77,10 +77,10 @@
           <thead>
             <tr>
               <th>Number</th>
-              <th>Title</th>
-              <th>Customer</th>
-              <th>Issued</th>
-              <th>Valid Until</th>
+              <th class="col-hide-sm">Title</th>
+              <th class="col-hide-sm">Customer</th>
+              <th class="col-hide-sm">Issued</th>
+              <th class="col-hide-sm">Valid Until</th>
               <th>Total</th>
               <th>Status</th>
               <th></th>
@@ -244,10 +244,10 @@ function render(q = '') {
     const expd  = v.status === 'sent' && v.validUntil && v.validUntil < today;
     return `<tr onclick="openDetail('${v.id}')" style="cursor:pointer">
       <td><span style="font-weight:600;font-variant-numeric:tabular-nums">${escHtml(v.number)}</span></td>
-      <td><span style="font-weight:500">${escHtml(v.title)}</span></td>
-      <td class="td-muted">${escHtml(c?.name || '—')}</td>
-      <td class="td-muted td-num">${fmtDateShort(v.issuedAt)}</td>
-      <td class="td-muted td-num${expd ? '" style="color:var(--s-due)' : ''}">${fmtDateShort(v.validUntil)}${expd ? ' <span style="font-size:10px">(expired)</span>' : ''}</td>
+      <td class="col-hide-sm"><span style="font-weight:500">${escHtml(v.title)}</span></td>
+      <td class="td-muted col-hide-sm">${escHtml(c?.name || '—')}</td>
+      <td class="td-muted td-num col-hide-sm">${fmtDateShort(v.issuedAt)}</td>
+      <td class="td-muted td-num col-hide-sm${expd ? '" style="color:var(--s-due)' : ''}">${fmtDateShort(v.validUntil)}${expd ? ' <span style="font-size:10px">(expired)</span>' : ''}</td>
       <td class="td-num" style="font-weight:600">${fmtMoney(v.total)}</td>
       <td>${badge(v.status)}</td>
       <td class="td-actions" onclick="event.stopPropagation()">
