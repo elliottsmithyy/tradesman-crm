@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — TradeBase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <div id="sidebarMount"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="page-title">Dashboard</span>
+      <div class="topbar-right">
+        <span id="todayLabel" style="font-size:12px;color:var(--text-3)"></span>
+      </div>
+    </header>
+    <main class="content">
+
+      <div class="stats-row">
+        <div class="stat-block">
+          <div class="stat-label">Today's Jobs</div>
+          <div class="stat-value" id="statToday">0</div>
+          <div class="stat-sub" id="statTodaySub"></div>
+        </div>
+        <div class="stat-block stat-accent">
+          <div class="stat-label">Outstanding Invoices</div>
+          <div class="stat-value" id="statUnpaid">£0</div>
+          <div class="stat-sub" id="statUnpaidSub"></div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Active Customers</div>
+          <div class="stat-value" id="statCustomers">0</div>
+          <div class="stat-sub">Total on record</div>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+
+        <!-- Today's jobs -->
+        <div class="tbl-wrap">
+          <div class="tbl-top">
+            <span class="tbl-title">Today's Jobs</span>
+            <a href="jobs.html" class="btn btn-secondary btn-sm">All jobs</a>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Job</th>
+                <th>Customer</th>
+                <th>Location</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="todayJobsTbody"></tbody>
+          </table>
+          <div id="todayEmpty" class="empty" style="display:none">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <p class="empty-title">Nothing booked today</p>
+            <p class="empty-desc">No jobs scheduled for today. Add one from the Jobs page.</p>
+            <a href="jobs.html" class="btn btn-primary">Go to Jobs</a>
+          </div>
+        </div>
+
+        <!-- Right column -->
+        <div style="display:flex;flex-direction:column;gap:14px">
+
+          <!-- Overdue invoices -->
+          <div class="tbl-wrap">
+            <div class="tbl-top">
+              <span class="tbl-title">Overdue</span>
+              <a href="invoices.html" class="btn btn-ghost btn-sm">View all</a>
+            </div>
+            <div id="overdueList" style="padding:0 18px 4px"></div>
+            <div id="overdueEmpty" class="empty" style="display:none;padding:28px 16px">
+              <p class="empty-title" style="font-size:13px">All clear</p>
+              <p class="empty-desc" style="font-size:12px">No overdue invoices.</p>
+            </div>
+          </div>
+
+          <!-- Upcoming jobs -->
+          <div class="tbl-wrap">
+            <div class="tbl-top">
+              <span class="tbl-title">Coming Up</span>
+              <a href="calendar.html" class="btn btn-ghost btn-sm">Calendar</a>
+            </div>
+            <div id="upcomingList" style="padding:0 18px 4px"></div>
+            <div id="upcomingEmpty" class="empty" style="display:none;padding:28px 16px">
+              <p class="empty-title" style="font-size:13px">Nothing scheduled</p>
+              <p class="empty-desc" style="font-size:12px">No jobs in the next 7 days.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="app.js"></script>
+<script>
+document.getElementById('sidebarMount').outerHTML = sidebarHtml('index.html');
+
+function render() {
+  const jobs      = DB.getJobs();
+  const invoices  = DB.getInvoices();
+  const customers = DB.getCustomers();
+  const now       = todayISO();
+
+  // Date label
+  document.getElementById('todayLabel').textContent =
+    new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Stats
+  const todayJobs = jobs.filter(j => j.date === now);
+  const unpaid    = invoices.filter(i => i.status === 'sent' || i.status === 'overdue');
+  const unpaidAmt = unpaid.reduce((s, i) => s + (i.total || 0), 0);
+  const overdueCount = invoices.filter(i => i.status === 'overdue').length;
+
+  countUp(document.getElementById('statToday'),     String(todayJobs.length));
+  document.getElementById('statTodaySub').textContent = todayJobs.length === 1 ? '1 job scheduled' : `${todayJobs.length} jobs scheduled`;
+  countUp(document.getElementById('statUnpaid'),    fmtMoney(unpaidAmt));
+  document.getElementById('statUnpaidSub').textContent = overdueCount > 0 ? `${overdueCount} overdue` : 'All current';
+  countUp(document.getElementById('statCustomers'), String(customers.length));
+
+  // Today's jobs table
+  const tbody = document.getElementById('todayJobsTbody');
+  const emptyEl = document.getElementById('todayEmpty');
+  if (todayJobs.length === 0) {
+    tbody.closest('table').style.display = 'none';
+    emptyEl.style.display = 'flex';
+  } else {
+    tbody.closest('table').style.display = '';
+    emptyEl.style.display = 'none';
+    tbody.innerHTML = todayJobs.map(j => {
+      const c = DB.getCustomer(j.customerId);
+      return `<tr>
+        <td><span style="font-weight:500">${escHtml(j.title)}</span></td>
+        <td class="td-muted">${escHtml(c?.name || '—')}</td>
+        <td class="td-muted" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(j.location || '—')}</td>
+        <td>${badge(j.status)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Overdue invoices
+  const overdueInvs = invoices.filter(i => i.status === 'overdue');
+  const overdueList = document.getElementById('overdueList');
+  const overdueEmpty = document.getElementById('overdueEmpty');
+  if (overdueInvs.length === 0) {
+    overdueList.style.display = 'none';
+    overdueEmpty.style.display = 'flex';
+  } else {
+    overdueList.style.display = '';
+    overdueEmpty.style.display = 'none';
+    overdueList.innerHTML = overdueInvs.map(inv => {
+      const c = DB.getCustomer(inv.customerId);
+      return `<div class="activity-item" style="cursor:pointer" onclick="window.location='invoices.html'">
+        <div class="activity-dot" style="background:var(--s-due)"></div>
+        <div style="flex:1">
+          <div class="activity-text"><strong>${escHtml(inv.number)}</strong> — ${escHtml(c?.name || '?')}</div>
+          <div class="activity-time">Due ${fmtDate(inv.dueAt)} &middot; ${fmtMoney(inv.total)}</div>
+        </div>
+        <span class="badge badge-overdue">Overdue</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Upcoming jobs (next 7 days, not today)
+  const sevenDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() + i + 1); return d.toISOString().slice(0, 10);
+  });
+  const upcoming = jobs.filter(j => sevenDays.includes(j.date) && j.status !== 'completed' && j.status !== 'invoiced')
+                       .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
+  const upList  = document.getElementById('upcomingList');
+  const upEmpty = document.getElementById('upcomingEmpty');
+  if (upcoming.length === 0) {
+    upList.style.display = 'none';
+    upEmpty.style.display = 'flex';
+  } else {
+    upList.style.display = '';
+    upEmpty.style.display = 'none';
+    upList.innerHTML = upcoming.map(j => {
+      const c = DB.getCustomer(j.customerId);
+      return `<div class="activity-item">
+        <div class="activity-dot"></div>
+        <div style="flex:1">
+          <div class="activity-text"><strong>${escHtml(j.title)}</strong> — ${escHtml(c?.name || '?')}</div>
+          <div class="activity-time">${fmtDate(j.date)}</div>
+        </div>
+        ${badge(j.status)}
+      </div>`;
+    }).join('');
+  }
+}
+
+render();
+</script>
+</body>
+</html>

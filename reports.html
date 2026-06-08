@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports — TradeBase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <div id="sidebarMount"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="page-title">Reports</span>
+      <div class="topbar-right">
+        <span id="reportsMeta" style="font-size:12px;color:var(--text-3)"></span>
+      </div>
+    </header>
+    <main class="content">
+
+      <div class="stats-row stats-row-4" id="reportsStats">
+        <div class="stat-block stat-accent">
+          <div class="stat-label">Total Earned</div>
+          <div class="stat-value" id="rTotalEarned">£0</div>
+          <div class="stat-sub">All paid invoices</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">This Month</div>
+          <div class="stat-value" id="rThisMonth">£0</div>
+          <div class="stat-sub" id="rMonthLabel"></div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Jobs Completed</div>
+          <div class="stat-value" id="rJobsDone">0</div>
+          <div class="stat-sub">Completed &amp; invoiced</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Quote Win Rate</div>
+          <div class="stat-value" id="rWinRate">—</div>
+          <div class="stat-sub" id="rWinSub"></div>
+        </div>
+      </div>
+
+      <!-- Revenue bar chart — full width -->
+      <div class="chart-card" style="margin-bottom:14px">
+        <div class="chart-title">Revenue — last 6 months</div>
+        <div style="position:relative">
+          <canvas id="revenueChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Two-column row -->
+      <div class="reports-grid">
+
+        <div class="chart-card">
+          <div class="chart-title">Jobs by Status</div>
+          <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap">
+            <canvas id="jobsChart" style="flex-shrink:0"></canvas>
+            <div class="chart-legend" id="jobsLegend"></div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">Top Customers by Revenue</div>
+          <canvas id="customersChart"></canvas>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="app.js"></script>
+<script>
+document.getElementById('sidebarMount').outerHTML = sidebarHtml('reports.html');
+
+// ── Chart color palette (hex equivalents of the OKLCH design system) ──
+const C = {
+  amber:    '#00bdd4',
+  amberDim: '#003d47',
+  blue:     '#4a7fb5',
+  green:    '#4a9b5c',
+  purple:   '#7b6ab5',
+  red:      '#b84040',
+  grey:     '#404850',
+  text1:    '#e8edf2',
+  text2:    '#8898a8',
+  text3:    '#506070',
+  border:   '#242e38',
+  bg:       '#111820',
+};
+
+const STATUS_COLOR = {
+  scheduled:  '#4a6e9b',
+  inprogress: C.amber,
+  completed:  C.green,
+  invoiced:   C.purple,
+  overdue:    C.red,
+  paid:       C.green,
+  draft:      C.grey,
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────
+
+function setupCanvas(canvas, cssH) {
+  const dpr = window.devicePixelRatio || 1;
+  const w   = canvas.parentElement.clientWidth || 400;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width        = Math.round(w * dpr);
+  canvas.height       = Math.round(cssH * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, w, h: cssH };
+}
+
+function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
+
+function runAnim(duration, draw) {
+  const start = performance.now();
+  function tick(now) {
+    const p = easeOutQuart(Math.min((now - start) / duration, 1));
+    draw(p);
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function lastSixMonths() {
+  const out = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push({
+      prefix: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      label:  d.toLocaleDateString('en-GB', { month: 'short' }),
+    });
+  }
+  return out;
+}
+
+// ── Summary stats ─────────────────────────────────────────────────────
+
+function renderStats() {
+  const invoices = DB.getInvoices();
+  const jobs     = DB.getJobs();
+  const quotes   = DB.getQuotes();
+  const now      = new Date();
+  const thisPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const totalEarned = invoices.filter(i => i.status === 'paid')
+    .reduce((s, i) => s + (i.total || 0), 0);
+
+  const thisMonth = invoices.filter(i => i.status === 'paid' && i.issuedAt?.startsWith(thisPrefix))
+    .reduce((s, i) => s + (i.total || 0), 0);
+
+  const jobsDone = jobs.filter(j => j.status === 'completed' || j.status === 'invoiced').length;
+
+  const decided  = quotes.filter(q => q.status === 'accepted' || q.status === 'declined');
+  const accepted = quotes.filter(q => q.status === 'accepted').length;
+  const winRate  = decided.length > 0 ? Math.round(accepted / decided.length * 100) : null;
+
+  countUp(document.getElementById('rTotalEarned'), fmtMoney(totalEarned));
+  countUp(document.getElementById('rThisMonth'),   fmtMoney(thisMonth));
+  countUp(document.getElementById('rJobsDone'),    String(jobsDone));
+
+  document.getElementById('rWinRate').textContent = winRate !== null ? `${winRate}%` : '—';
+  document.getElementById('rWinSub').textContent  = decided.length > 0
+    ? `${accepted} of ${decided.length} decided`
+    : 'No decided quotes yet';
+  document.getElementById('rMonthLabel').textContent =
+    now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  document.getElementById('reportsMeta').textContent =
+    `${DB.getCustomers().length} customers · ${invoices.length} invoices`;
+}
+
+// ── Revenue bar chart ─────────────────────────────────────────────────
+
+function drawRevenue() {
+  const canvas = document.getElementById('revenueChart');
+  if (!canvas) return;
+  const { ctx, w, h } = setupCanvas(canvas, 210);
+
+  const months   = lastSixMonths();
+  const invoices = DB.getInvoices();
+  const values   = months.map(m =>
+    invoices.filter(i => i.status === 'paid' && i.issuedAt?.startsWith(m.prefix))
+            .reduce((s, i) => s + (i.total || 0), 0)
+  );
+
+  const maxVal = Math.max(...values, 1);
+  const pL = 56, pR = 12, pT = 20, pB = 36;
+  const plotW  = w - pL - pR;
+  const plotH  = h - pT - pB;
+  const cols   = months.length;
+  const colW   = plotW / cols;
+  const barW   = Math.floor(colW * 0.48);
+
+  runAnim(720, p => {
+    ctx.clearRect(0, 0, w, h);
+
+    // Horizontal grid + Y labels
+    const gridSteps = 4;
+    for (let i = 0; i <= gridSteps; i++) {
+      const gy = pT + plotH - plotH * i / gridSteps;
+      ctx.strokeStyle = C.border;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pL, gy); ctx.lineTo(w - pR, gy); ctx.stroke();
+
+      if (i > 0) {
+        const gv = maxVal * i / gridSteps;
+        ctx.fillStyle = C.text3;
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(gv >= 1000 ? '£' + (gv / 1000).toFixed(0) + 'k' : '£' + Math.round(gv), pL - 6, gy);
+      }
+    }
+
+    // Bars
+    months.forEach((m, i) => {
+      const bx = pL + colW * i + (colW - barW) / 2;
+      const bH = plotH * (values[i] / maxVal) * p;
+      const by = pT + plotH - bH;
+
+      // Ghost bar (shows full height context)
+      ctx.fillStyle = C.border;
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(bx, pT, barW, plotH, [3, 3, 0, 0]);
+      else ctx.rect(bx, pT, barW, plotH);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Main bar
+      ctx.fillStyle = values[i] > 0 ? C.amber : 'transparent';
+      if (bH > 0) {
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx, by, barW, bH, [3, 3, 0, 0]);
+        else ctx.rect(bx, by, barW, bH);
+        ctx.fill();
+      }
+
+      // Month label
+      ctx.fillStyle = C.text2;
+      ctx.font = '10.5px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(m.label, bx + barW / 2, pT + plotH + 9);
+
+      // Value label (fades in toward end of animation)
+      if (values[i] > 0 && p > 0.6) {
+        ctx.globalAlpha = Math.min(1, (p - 0.6) / 0.4);
+        ctx.fillStyle = C.text1;
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(
+          values[i] >= 1000 ? '£' + (values[i] / 1000).toFixed(1) + 'k' : '£' + values[i],
+          bx + barW / 2, by - 4
+        );
+        ctx.globalAlpha = 1;
+      }
+    });
+  });
+}
+
+// ── Job status donut ──────────────────────────────────────────────────
+
+function drawJobsDonut() {
+  const canvas = document.getElementById('jobsChart');
+  if (!canvas) return;
+
+  const size = 144;
+  const dpr  = window.devicePixelRatio || 1;
+  canvas.style.width  = size + 'px';
+  canvas.style.height = size + 'px';
+  canvas.width  = size * dpr;
+  canvas.height = size * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const jobs  = DB.getJobs();
+  const total = jobs.length || 1;
+  const counts = {};
+  jobs.forEach(j => { counts[j.status] = (counts[j.status] || 0) + 1; });
+
+  const segments = Object.entries(counts).map(([s, n]) => ({
+    label: s === 'inprogress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1),
+    count: n,
+    color: STATUS_COLOR[s] || C.grey,
+    frac:  n / total,
+  }));
+
+  const cx = size / 2, cy = size / 2;
+  const R = 56, r = 34;
+
+  runAnim(760, p => {
+    ctx.clearRect(0, 0, size, size);
+
+    let angle = -Math.PI / 2;
+    segments.forEach((seg, si) => {
+      const sweep = 2 * Math.PI * seg.frac * p;
+      if (sweep < 0.001) return;
+
+      // Slight gap between segments
+      const gap = segments.length > 1 && p > 0.98 ? 0.03 : 0;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, angle + gap / 2, angle + sweep - gap / 2);
+      ctx.arc(cx, cy, r, angle + sweep - gap / 2, angle + gap / 2, true);
+      ctx.closePath();
+      ctx.fillStyle = seg.color;
+      ctx.fill();
+
+      angle += sweep;
+    });
+
+    // Background hole
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 1, 0, 2 * Math.PI);
+    ctx.fillStyle = C.bg;
+    ctx.fill();
+
+    // Center label
+    if (p > 0.72) {
+      const a = Math.min(1, (p - 0.72) / 0.28);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = C.text1;
+      ctx.font = '700 15px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(jobs.length, cx, cy - 7);
+      ctx.fillStyle = C.text3;
+      ctx.font = '9.5px Inter, sans-serif';
+      ctx.fillText('total jobs', cx, cy + 7);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  // Render legend after animation settles
+  setTimeout(() => {
+    const leg = document.getElementById('jobsLegend');
+    if (leg) {
+      leg.innerHTML = segments.map(s =>
+        `<div class="legend-item">
+          <div class="legend-dot" style="background:${s.color};border-radius:50%"></div>
+          <span>${s.label} <span style="color:var(--text-3)">(${s.count})</span></span>
+        </div>`
+      ).join('');
+    }
+  }, 820);
+}
+
+// ── Top customers horizontal bars ─────────────────────────────────────
+
+function drawTopCustomers() {
+  const canvas = document.getElementById('customersChart');
+  if (!canvas) return;
+  const { ctx, w, h } = setupCanvas(canvas, 160);
+
+  const paid = DB.getInvoices().filter(i => i.status === 'paid');
+  const byCustomer = {};
+  paid.forEach(inv => {
+    byCustomer[inv.customerId] = (byCustomer[inv.customerId] || 0) + (inv.total || 0);
+  });
+
+  const top = Object.entries(byCustomer)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([id, rev]) => ({ name: DB.getCustomer(id)?.name || '?', rev }));
+
+  if (top.length === 0) {
+    ctx.fillStyle = C.text3;
+    ctx.font = '12px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('No revenue data yet', w / 2, h / 2);
+    return;
+  }
+
+  const maxRev = top[0].rev;
+  const pL = 80, pR = 60;
+  const rowH = h / top.length;
+  const barH = 11;
+
+  runAnim(660, p => {
+    ctx.clearRect(0, 0, w, h);
+
+    top.forEach(({ name, rev }, i) => {
+      const midY = i * rowH + rowH / 2;
+      const by   = i * rowH + (rowH - barH) / 2;
+      const maxBW = w - pL - pR;
+      const bW   = maxBW * (rev / maxRev) * p;
+
+      // Track
+      ctx.fillStyle = C.border;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(pL, by, maxBW, barH, 3);
+      else ctx.rect(pL, by, maxBW, barH);
+      ctx.fill();
+
+      // Bar
+      if (bW > 0) {
+        ctx.fillStyle = i === 0 ? C.amber : C.amberDim;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(pL, by, bW, barH, 3);
+        else ctx.rect(pL, by, bW, barH);
+        ctx.fill();
+      }
+
+      // Name
+      const firstName = name.split(' ')[0];
+      ctx.fillStyle = i === 0 ? C.text1 : C.text2;
+      ctx.font = `${i === 0 ? '500' : '400'} 11px Inter, sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(firstName, pL - 8, midY);
+
+      // Revenue value (fades in)
+      if (p > 0.45) {
+        ctx.globalAlpha = Math.min(1, (p - 0.45) / 0.55);
+        ctx.fillStyle = i === 0 ? C.text2 : C.text3;
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('£' + rev.toLocaleString('en-GB'), pL + maxBW + 6, midY);
+        ctx.globalAlpha = 1;
+      }
+    });
+  });
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────
+
+requestAnimationFrame(() => {
+  renderStats();
+  drawRevenue();
+  drawJobsDonut();
+  drawTopCustomers();
+});
+</script>
+</body>
+</html>

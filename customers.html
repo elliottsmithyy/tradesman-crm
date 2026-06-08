@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customers — TradeBase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <div id="sidebarMount"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="page-title">Customers</span>
+      <div class="topbar-right">
+        <button class="btn btn-primary" id="newCustomerBtn"><span id="newBtnIcon"></span> New Customer</button>
+      </div>
+    </header>
+    <main class="content">
+      <div class="tbl-wrap">
+        <div class="tbl-top">
+          <span class="tbl-title" id="customerCount">All Customers</span>
+          <div class="tbl-actions">
+            <div class="search-wrap">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input class="search-input" type="text" placeholder="Search customers..." id="searchInput">
+            </div>
+          </div>
+        </div>
+        <table id="customersTable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Address</th>
+              <th>Jobs</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="customersTbody"></tbody>
+        </table>
+        <div id="customersEmpty" class="empty" style="display:none">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <p class="empty-title">No customers yet</p>
+          <p class="empty-desc">Add your first customer to start tracking jobs and invoices.</p>
+          <button class="btn btn-primary" id="emptyNewBtn">Add Customer</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Detail drawer -->
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="drawer" id="detailDrawer">
+  <div class="drawer-head">
+    <span class="drawer-title" id="detailTitle">Customer</span>
+    <button class="close-btn" onclick="closeDetail()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body" id="detailBody"></div>
+  <div class="drawer-foot" id="detailFoot"></div>
+</div>
+
+<!-- Form drawer -->
+<div class="overlay" id="formOverlay" onclick="closeForm()"></div>
+<div class="drawer" id="formDrawer">
+  <div class="drawer-head">
+    <span class="drawer-title" id="formTitle">New Customer</span>
+    <button class="close-btn" onclick="closeForm()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body">
+    <form id="customerForm" class="form-gap">
+      <input type="hidden" id="fId">
+      <div class="section-label">Contact Details</div>
+      <div class="form-grid">
+        <div class="form-group span-2">
+          <label class="form-label">Full Name *</label>
+          <input class="form-ctrl" type="text" id="fName" required placeholder="e.g. John Hartley">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input class="form-ctrl" type="tel" id="fPhone" placeholder="07700 000 000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-ctrl" type="email" id="fEmail" placeholder="john@example.com">
+        </div>
+        <div class="form-group span-2">
+          <label class="form-label">Address</label>
+          <input class="form-ctrl" type="text" id="fAddress" placeholder="14 Mill Street, Bradford, BD1 4TH">
+        </div>
+        <div class="form-group span-2">
+          <label class="form-label">Notes</label>
+          <textarea class="form-ctrl" id="fNotes" rows="3" placeholder="Access details, special instructions..."></textarea>
+        </div>
+      </div>
+    </form>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+    <button class="btn btn-primary" id="saveCustomerBtn">Save Customer</button>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="app.js"></script>
+<script>
+document.getElementById('sidebarMount').outerHTML = sidebarHtml('customers.html');
+document.getElementById('newBtnIcon').outerHTML = ICONS.plus;
+
+let activeCustomerId = null;
+
+// ── Render table ──────────────────────────────────────────────────────
+
+function render(filter = '') {
+  const customers = DB.getCustomers();
+  const jobs      = DB.getJobs();
+  const q = filter.toLowerCase();
+  const filtered = q
+    ? customers.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        c.phone.toLowerCase().includes(q) ||
+        (c.address || '').toLowerCase().includes(q))
+    : customers;
+
+  document.getElementById('customerCount').textContent =
+    filtered.length === customers.length
+      ? `${customers.length} Customer${customers.length !== 1 ? 's' : ''}`
+      : `${filtered.length} of ${customers.length} Customers`;
+
+  const tbody  = document.getElementById('customersTbody');
+  const empty  = document.getElementById('customersEmpty');
+  const table  = document.getElementById('customersTable');
+
+  if (filtered.length === 0) {
+    table.style.display = 'none';
+    empty.style.display = 'flex';
+    return;
+  }
+  table.style.display = '';
+  empty.style.display = 'none';
+
+  tbody.innerHTML = filtered.map(c => {
+    const jobCount = jobs.filter(j => j.customerId === c.id).length;
+    return `<tr onclick="openDetail('${c.id}')" style="cursor:pointer">
+      <td><span style="font-weight:500">${escHtml(c.name)}</span></td>
+      <td class="td-muted">${escHtml(c.phone || '—')}</td>
+      <td class="td-muted">${escHtml(c.email || '—')}</td>
+      <td class="td-muted" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.address || '—')}</td>
+      <td class="td-muted">${jobCount}</td>
+      <td class="td-actions" onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="openEdit('${c.id}')">Edit</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Detail drawer ─────────────────────────────────────────────────────
+
+function openDetail(id) {
+  activeCustomerId = id;
+  const c = DB.getCustomer(id);
+  if (!c) return;
+
+  const jobs     = DB.getJobsFor(id);
+  const invoices = DB.getInvoicesFor(id);
+  const total    = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.total || 0), 0);
+
+  document.getElementById('detailTitle').textContent = c.name;
+
+  document.getElementById('detailBody').innerHTML = `
+    <div class="section-label" style="margin-top:0">Contact</div>
+    <div class="detail-field"><div class="detail-key">Phone</div><div class="detail-val">${c.phone ? `<a href="tel:${escHtml(c.phone)}" style="color:var(--accent)">${escHtml(c.phone)}</a>` : '<span class="muted">—</span>'}</div></div>
+    <div class="detail-field"><div class="detail-key">Email</div><div class="detail-val">${c.email ? `<a href="mailto:${escHtml(c.email)}" style="color:var(--accent)">${escHtml(c.email)}</a>` : '<span class="muted">—</span>'}</div></div>
+    <div class="detail-field"><div class="detail-key">Address</div><div class="detail-val">${c.address ? escHtml(c.address) : '<span class="muted">—</span>'}</div></div>
+    ${c.notes ? `<div class="detail-field"><div class="detail-key">Notes</div><div class="detail-val">${escHtml(c.notes)}</div></div>` : ''}
+    <div class="detail-field"><div class="detail-key">Customer Since</div><div class="detail-val">${fmtDate(c.createdAt)}</div></div>
+
+    <div class="section-label">Job History (${jobs.length})</div>
+    ${jobs.length === 0
+      ? `<p style="color:var(--text-3);font-size:12.5px;padding:8px 0">No jobs on record.</p>`
+      : jobs.map(j => `
+          <div class="activity-item">
+            <div class="activity-dot"></div>
+            <div style="flex:1">
+              <div class="activity-text"><strong>${escHtml(j.title)}</strong></div>
+              <div class="activity-time">${fmtDate(j.date)}</div>
+            </div>
+            ${badge(j.status)}
+          </div>`).join('')}
+
+    <div class="section-label">Invoices (${invoices.length})</div>
+    ${invoices.length === 0
+      ? `<p style="color:var(--text-3);font-size:12.5px;padding:8px 0">No invoices on record.</p>`
+      : invoices.map(inv => `
+          <div class="activity-item">
+            <div class="activity-dot" style="background:${inv.status === 'paid' ? 'var(--s-done)' : inv.status === 'overdue' ? 'var(--s-due)' : 'var(--accent-dim)'}"></div>
+            <div style="flex:1">
+              <div class="activity-text"><strong>${escHtml(inv.number)}</strong> &middot; ${fmtMoney(inv.total)}</div>
+              <div class="activity-time">Issued ${fmtDate(inv.issuedAt)}</div>
+            </div>
+            ${badge(inv.status)}
+          </div>`).join('')}
+
+    ${invoices.length > 0 ? `<div style="padding:12px 0;border-top:1px solid var(--border-subtle);margin-top:4px;font-size:13px;color:var(--text-2)">Total revenue paid: <strong style="color:var(--text-1)">${fmtMoney(total)}</strong></div>` : ''}
+  `;
+
+  document.getElementById('detailFoot').innerHTML = `
+    <button class="btn btn-danger btn-sm" onclick="confirmDelete('${c.id}')">Delete</button>
+    <a href="invoices.html" class="btn btn-secondary btn-sm">New Invoice</a>
+    <button class="btn btn-primary btn-sm" onclick="openEdit('${c.id}')">Edit</button>
+  `;
+
+  openDrawer('detailDrawer', 'overlay');
+}
+
+function closeDetail() {
+  closeDrawer('detailDrawer', 'overlay');
+}
+
+// ── Form drawer ───────────────────────────────────────────────────────
+
+function openNew() {
+  document.getElementById('formTitle').textContent = 'New Customer';
+  document.getElementById('fId').value    = '';
+  document.getElementById('fName').value  = '';
+  document.getElementById('fPhone').value = '';
+  document.getElementById('fEmail').value = '';
+  document.getElementById('fAddress').value = '';
+  document.getElementById('fNotes').value = '';
+  openDrawer('formDrawer', 'formOverlay');
+  document.getElementById('fName').focus();
+}
+
+function openEdit(id) {
+  const c = DB.getCustomer(id);
+  if (!c) return;
+  document.getElementById('formTitle').textContent  = 'Edit Customer';
+  document.getElementById('fId').value    = c.id;
+  document.getElementById('fName').value  = c.name;
+  document.getElementById('fPhone').value = c.phone || '';
+  document.getElementById('fEmail').value = c.email || '';
+  document.getElementById('fAddress').value = c.address || '';
+  document.getElementById('fNotes').value = c.notes || '';
+  closeDetail();
+  openDrawer('formDrawer', 'formOverlay');
+  document.getElementById('fName').focus();
+}
+
+function closeForm() {
+  closeDrawer('formDrawer', 'formOverlay');
+}
+
+function confirmDelete(id) {
+  const c = DB.getCustomer(id);
+  if (!c) return;
+  if (!confirm(`Delete ${c.name}? This cannot be undone.`)) return;
+  DB.deleteCustomer(id);
+  closeDetail();
+  toast(`${c.name} deleted`);
+  render(document.getElementById('searchInput').value);
+}
+
+document.getElementById('saveCustomerBtn').addEventListener('click', () => {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { toast('Name is required', 'err'); return; }
+
+  const id = document.getElementById('fId').value || uid();
+  DB.saveCustomer({
+    id,
+    name,
+    phone:     document.getElementById('fPhone').value.trim(),
+    email:     document.getElementById('fEmail').value.trim(),
+    address:   document.getElementById('fAddress').value.trim(),
+    notes:     document.getElementById('fNotes').value.trim(),
+    createdAt: DB.getCustomer(id)?.createdAt || todayISO(),
+  });
+
+  closeForm();
+  toast(document.getElementById('fId').value ? `${name} updated` : `${name} added`);
+  render(document.getElementById('searchInput').value);
+});
+
+document.getElementById('newCustomerBtn').addEventListener('click', openNew);
+document.getElementById('emptyNewBtn').addEventListener('click', openNew);
+
+document.getElementById('searchInput').addEventListener('input', e => render(e.target.value));
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeDetail(); closeForm(); }
+});
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoices — TradeBase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    @media print {
+      .app { display: block; }
+      .sidebar, .topbar, .tbl-wrap, .filter-bar, .topbar-right { display: none !important; }
+      .main { overflow: visible; }
+      .content { padding: 0; overflow: visible; }
+      #printArea { display: block !important; }
+      body { background: #fff; color: #111; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div id="sidebarMount"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="page-title">Invoices</span>
+      <div class="topbar-right">
+        <button class="btn btn-primary" id="newInvBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Invoice
+        </button>
+      </div>
+    </header>
+    <main class="content">
+
+      <div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-block stat-accent">
+          <div class="stat-label">Outstanding</div>
+          <div class="stat-value" id="sOutstanding">£0</div>
+          <div class="stat-sub" id="sOutstandingSub"></div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Paid (All Time)</div>
+          <div class="stat-value" id="sPaid">£0</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Overdue</div>
+          <div class="stat-value" id="sOverdue" style="color:var(--s-due)">0</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Draft</div>
+          <div class="stat-value" id="sDraft">0</div>
+        </div>
+      </div>
+
+      <div class="filter-bar" id="filterBar">
+        <button class="chip active" data-filter="all">All</button>
+        <button class="chip" data-filter="draft">Draft</button>
+        <button class="chip" data-filter="sent">Sent</button>
+        <button class="chip" data-filter="paid">Paid</button>
+        <button class="chip" data-filter="overdue">Overdue</button>
+      </div>
+
+      <div class="tbl-wrap">
+        <div class="tbl-top">
+          <span class="tbl-title" id="invCount">All Invoices</span>
+        </div>
+        <table id="invTable">
+          <thead>
+            <tr>
+              <th>Number</th>
+              <th>Customer</th>
+              <th>Issued</th>
+              <th>Due</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="invTbody"></tbody>
+        </table>
+        <div id="invEmpty" class="empty" style="display:none">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <p class="empty-title">No invoices</p>
+          <p class="empty-desc">Create your first invoice to start tracking payments.</p>
+          <button class="btn btn-primary" id="emptyNewBtn">Create Invoice</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- View / send drawer -->
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="drawer" id="detailDrawer">
+  <div class="drawer-head">
+    <span class="drawer-title" id="detailTitle">Invoice</span>
+    <button class="close-btn" onclick="closeDetail()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body" id="detailBody"></div>
+  <div class="drawer-foot" id="detailFoot"></div>
+</div>
+
+<!-- Form drawer -->
+<div class="overlay" id="formOverlay" onclick="closeForm()"></div>
+<div class="drawer" id="formDrawer">
+  <div class="drawer-head">
+    <span class="drawer-title" id="formTitle">New Invoice</span>
+    <button class="close-btn" onclick="closeForm()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body">
+    <div class="form-gap">
+      <input type="hidden" id="fId">
+      <div class="section-label" style="margin-top:0">Invoice Details</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Customer *</label>
+          <select class="form-ctrl" id="fCustomer" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-ctrl" id="fStatus">
+            <option value="draft">Draft</option>
+            <option value="sent">Sent</option>
+            <option value="paid">Paid</option>
+            <option value="overdue">Overdue</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Issue Date</label>
+          <input class="form-ctrl" type="date" id="fIssued">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Due Date</label>
+          <input class="form-ctrl" type="date" id="fDue">
+        </div>
+      </div>
+
+      <div class="section-label">Line Items</div>
+      <table class="line-tbl">
+        <thead>
+          <tr>
+            <th style="width:50%">Description</th>
+            <th style="width:12%">Qty</th>
+            <th style="width:18%">Rate (£)</th>
+            <th style="width:15%">Total</th>
+            <th style="width:5%"></th>
+          </tr>
+        </thead>
+        <tbody id="lineItemsTbody"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="text-align:right;padding-right:12px;font-size:12.5px;color:var(--text-2)">Total</td>
+            <td id="lineTotal" class="td-num">£0.00</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+      <button class="btn btn-ghost btn-sm" id="addLineBtn" style="color:var(--accent)">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add line item
+      </button>
+
+      <div class="form-group" style="margin-top:8px">
+        <label class="form-label">Notes</label>
+        <textarea class="form-ctrl" id="fNotes" rows="2" placeholder="Payment terms, additional info..."></textarea>
+      </div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+    <button class="btn btn-primary" id="saveInvBtn">Save Invoice</button>
+  </div>
+</div>
+
+<!-- Hidden print area -->
+<div id="printArea" style="display:none"></div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="app.js"></script>
+<script>
+document.getElementById('sidebarMount').outerHTML = sidebarHtml('invoices.html');
+
+let activeFilter = 'all';
+
+// ── Stats + Render table ───────────────────────────────────────────────
+
+function renderStats() {
+  const invs = DB.getInvoices();
+  const outstanding = invs.filter(i => i.status === 'sent' || i.status === 'overdue');
+  const outAmt      = outstanding.reduce((s, i) => s + (i.total || 0), 0);
+  const paidAmt     = invs.filter(i => i.status === 'paid').reduce((s, i) => s + (i.total || 0), 0);
+  const overdueCount = invs.filter(i => i.status === 'overdue').length;
+  const draftCount   = invs.filter(i => i.status === 'draft').length;
+
+  document.getElementById('sOutstanding').textContent   = fmtMoney(outAmt);
+  document.getElementById('sOutstandingSub').textContent = `${outstanding.length} invoice${outstanding.length !== 1 ? 's' : ''}`;
+  document.getElementById('sPaid').textContent           = fmtMoney(paidAmt);
+  document.getElementById('sOverdue').textContent        = overdueCount;
+  document.getElementById('sDraft').textContent          = draftCount;
+}
+
+function render() {
+  renderStats();
+  const invs = DB.getInvoices();
+  const filtered = activeFilter === 'all' ? invs : invs.filter(i => i.status === activeFilter);
+  filtered.sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
+
+  document.getElementById('invCount').textContent = `${filtered.length} Invoice${filtered.length !== 1 ? 's' : ''}`;
+
+  const tbody = document.getElementById('invTbody');
+  const empty = document.getElementById('invEmpty');
+  const table = document.getElementById('invTable');
+
+  if (filtered.length === 0) { table.style.display = 'none'; empty.style.display = 'flex'; return; }
+  table.style.display = ''; empty.style.display = 'none';
+
+  tbody.innerHTML = filtered.map(inv => {
+    const c = DB.getCustomer(inv.customerId);
+    const isOverdue = inv.status !== 'paid' && inv.dueAt && inv.dueAt < todayISO();
+    return `<tr onclick="openDetail('${inv.id}')" style="cursor:pointer">
+      <td><span style="font-weight:600;font-variant-numeric:tabular-nums">${escHtml(inv.number)}</span></td>
+      <td class="td-muted">${escHtml(c?.name || '—')}</td>
+      <td class="td-muted td-num">${fmtDateShort(inv.issuedAt)}</td>
+      <td class="td-muted td-num${isOverdue ? '" style="color:var(--s-due)' : ''}">${fmtDateShort(inv.dueAt)}</td>
+      <td class="td-num" style="font-weight:600">${fmtMoney(inv.total)}</td>
+      <td>${badge(inv.status)}</td>
+      <td class="td-actions" onclick="event.stopPropagation()">
+        ${inv.status === 'draft' || inv.status === 'sent'
+          ? `<button class="btn btn-ghost btn-sm" onclick="sendInvoice('${inv.id}')">Send</button>`
+          : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Detail drawer ─────────────────────────────────────────────────────
+
+function openDetail(id) {
+  const inv = DB.getInvoice(id);
+  if (!inv) return;
+  const c    = DB.getCustomer(inv.customerId);
+  const settings = DB.getSettings();
+
+  document.getElementById('detailTitle').textContent = inv.number;
+  document.getElementById('detailBody').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em">${escHtml(inv.number)}</div>
+        <div style="font-size:13px;color:var(--text-3);margin-top:3px">${fmtDate(inv.issuedAt)}</div>
+      </div>
+      ${badge(inv.status)}
+    </div>
+
+    <div class="section-label" style="margin-top:0">Bill To</div>
+    <div class="detail-field"><div class="detail-key">Customer</div><div class="detail-val">${escHtml(c?.name || '—')}</div></div>
+    <div class="detail-field"><div class="detail-key">Email</div><div class="detail-val">${c?.email ? `<a href="mailto:${escHtml(c.email)}" style="color:var(--accent)">${escHtml(c.email)}</a>` : '—'}</div></div>
+    <div class="detail-field"><div class="detail-key">Due Date</div><div class="detail-val">${fmtDate(inv.dueAt) || '—'}</div></div>
+
+    <div class="section-label">Line Items</div>
+    <table class="line-tbl">
+      <thead><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead>
+      <tbody>
+        ${inv.lineItems.map(li =>
+          `<tr><td>${escHtml(li.desc)}</td><td>${li.qty}</td><td>${fmtMoney(li.rate)}</td><td class="td-num" style="font-weight:600">${fmtMoney(li.total)}</td></tr>`
+        ).join('')}
+      </tbody>
+      <tfoot><tr><td colspan="3" style="text-align:right;padding-right:12px">Total</td><td class="td-num">${fmtMoney(inv.total)}</td></tr></tfoot>
+    </table>
+
+    ${inv.notes ? `<div style="margin-top:14px;font-size:12.5px;color:var(--text-2);padding:10px;background:var(--surface-2);border-radius:var(--r)">${escHtml(inv.notes)}</div>` : ''}
+  `;
+
+  document.getElementById('detailFoot').innerHTML = `
+    <button class="btn btn-danger btn-sm" onclick="confirmDeleteInv('${inv.id}')">Delete</button>
+    <button class="btn btn-secondary btn-sm" onclick="printInvoice('${inv.id}')">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print
+    </button>
+    <button class="btn btn-secondary btn-sm" onclick="openEdit('${inv.id}')">Edit</button>
+    ${inv.status !== 'paid'
+      ? `<button class="btn btn-primary btn-sm" onclick="sendInvoice('${inv.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send Invoice
+        </button>`
+      : ''}
+  `;
+
+  openDrawer('detailDrawer', 'overlay');
+}
+
+function closeDetail() { closeDrawer('detailDrawer', 'overlay'); }
+
+function sendInvoice(id) {
+  const inv = DB.getInvoice(id);
+  const c   = DB.getCustomer(inv?.customerId);
+  if (!inv || !c?.email) { toast('Customer has no email address', 'err'); return; }
+
+  const settings = DB.getSettings();
+  const subject  = encodeURIComponent(`Invoice ${inv.number} from ${settings.businessName}`);
+  const lines    = inv.lineItems.map(li => `  ${li.desc}: ${fmtMoney(li.total)}`).join('\n');
+  const body     = encodeURIComponent(
+    `Hi ${c.name.split(' ')[0]},\n\nPlease find your invoice details below:\n\n` +
+    `Invoice: ${inv.number}\nDate: ${fmtDate(inv.issuedAt)}\nDue: ${fmtDate(inv.dueAt)}\n\n${lines}\n\nTotal: ${fmtMoney(inv.total)}\n\n` +
+    (inv.notes ? `Notes: ${inv.notes}\n\n` : '') +
+    `Thank you for your business.\n\n${settings.businessName}`
+  );
+
+  window.location.href = `mailto:${c.email}?subject=${subject}&body=${body}`;
+
+  if (inv.status === 'draft') {
+    inv.status = 'sent';
+    DB.saveInvoice(inv);
+    render();
+    if (document.getElementById('detailDrawer').classList.contains('open')) openDetail(id);
+  }
+  toast('Email client opened');
+}
+
+function printInvoice(id) {
+  const inv = DB.getInvoice(id);
+  const c   = DB.getCustomer(inv?.customerId);
+  if (!inv) return;
+  const settings = DB.getSettings();
+
+  document.getElementById('printArea').innerHTML = `
+    <div style="font-family:Inter,system-ui,sans-serif;max-width:680px;margin:40px auto;color:#111">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px">
+        <div>
+          <h1 style="font-size:28px;font-weight:700;margin-bottom:4px">${escHtml(settings.businessName)}</h1>
+          ${settings.address ? `<div style="color:#666;font-size:13px">${escHtml(settings.address)}</div>` : ''}
+          ${settings.phone   ? `<div style="color:#666;font-size:13px">${escHtml(settings.phone)}</div>` : ''}
+          ${settings.email   ? `<div style="color:#666;font-size:13px">${escHtml(settings.email)}</div>` : ''}
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:24px;font-weight:700">${escHtml(inv.number)}</div>
+          <div style="color:#888;margin-top:4px">Issued: ${fmtDate(inv.issuedAt)}</div>
+          <div style="color:#888">Due: ${fmtDate(inv.dueAt)}</div>
+        </div>
+      </div>
+      <div style="margin-bottom:32px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#888;margin-bottom:6px">Bill To</div>
+        <div style="font-weight:600;font-size:15px">${escHtml(c?.name || '—')}</div>
+        ${c?.address ? `<div style="color:#666;font-size:13px;margin-top:2px">${escHtml(c.address)}</div>` : ''}
+        ${c?.email   ? `<div style="color:#666;font-size:13px">${escHtml(c.email)}</div>` : ''}
+      </div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+        <thead>
+          <tr style="border-bottom:2px solid #111">
+            <th style="text-align:left;padding:8px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Description</th>
+            <th style="text-align:right;padding:8px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Qty</th>
+            <th style="text-align:right;padding:8px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Rate</th>
+            <th style="text-align:right;padding:8px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${inv.lineItems.map(li => `
+            <tr style="border-bottom:1px solid #eee">
+              <td style="padding:10px 0;font-size:14px">${escHtml(li.desc)}</td>
+              <td style="padding:10px 0;text-align:right;font-size:14px">${li.qty}</td>
+              <td style="padding:10px 0;text-align:right;font-size:14px">${fmtMoney(li.rate)}</td>
+              <td style="padding:10px 0;text-align:right;font-size:14px;font-weight:600">${fmtMoney(li.total)}</td>
+            </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="padding-top:12px;text-align:right;font-weight:700;font-size:15px">Total</td>
+            <td style="padding-top:12px;text-align:right;font-weight:700;font-size:18px">${fmtMoney(inv.total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      ${inv.notes ? `<div style="padding:12px;background:#f5f5f5;border-radius:6px;font-size:13px;color:#555">${escHtml(inv.notes)}</div>` : ''}
+    </div>`;
+  window.print();
+}
+
+function confirmDeleteInv(id) {
+  const inv = DB.getInvoice(id);
+  if (!confirm(`Delete ${inv?.number}?`)) return;
+  DB.deleteInvoice(id);
+  closeDetail();
+  toast('Invoice deleted');
+  render();
+}
+
+// ── Form drawer ───────────────────────────────────────────────────────
+
+let lineItems = [];
+
+function addLineRow(desc = '', qty = 1, rate = 0) {
+  lineItems.push({ desc, qty, rate, total: qty * rate });
+  renderLineItems();
+}
+
+function removeLineRow(i) {
+  lineItems.splice(i, 1);
+  renderLineItems();
+}
+
+function renderLineItems() {
+  const tbody = document.getElementById('lineItemsTbody');
+  tbody.innerHTML = lineItems.map((li, i) => `
+    <tr>
+      <td><input class="form-ctrl" style="padding:5px 8px" type="text" value="${escHtml(li.desc)}" placeholder="Description" oninput="lineItems[${i}].desc=this.value;recalc()"></td>
+      <td><input class="form-ctrl" style="padding:5px 8px;width:60px" type="number" min="1" step="1" value="${li.qty}" oninput="lineItems[${i}].qty=parseFloat(this.value)||1;recalc()"></td>
+      <td><input class="form-ctrl" style="padding:5px 8px;width:90px" type="number" min="0" step="0.01" value="${li.rate}" oninput="lineItems[${i}].rate=parseFloat(this.value)||0;recalc()"></td>
+      <td class="td-num">${fmtMoney(li.total)}</td>
+      <td><button class="line-del" onclick="removeLineRow(${i})" title="Remove">✕</button></td>
+    </tr>`).join('');
+  recalc();
+}
+
+function recalc() {
+  lineItems.forEach(li => { li.total = (li.qty || 1) * (li.rate || 0); });
+  const total = lineItems.reduce((s, li) => s + li.total, 0);
+  document.getElementById('lineTotal').textContent = fmtMoney(total);
+  // Re-render totals column
+  document.querySelectorAll('#lineItemsTbody tr').forEach((row, i) => {
+    const cells = row.querySelectorAll('td');
+    if (cells[3]) cells[3].textContent = fmtMoney(lineItems[i]?.total || 0);
+  });
+}
+
+function populateCustomerSelect(selId = '') {
+  const sel = document.getElementById('fCustomer');
+  sel.innerHTML = '<option value="">Select customer...</option>' +
+    DB.getCustomers().map(c =>
+      `<option value="${c.id}"${c.id === selId ? ' selected' : ''}>${escHtml(c.name)}</option>`
+    ).join('');
+}
+
+function openNew() {
+  lineItems = [{ desc: 'Labour', qty: 1, rate: 0, total: 0 }];
+  document.getElementById('formTitle').textContent = 'New Invoice';
+  document.getElementById('fId').value     = '';
+  document.getElementById('fStatus').value = 'draft';
+  document.getElementById('fIssued').value = todayISO();
+  const due = new Date(); due.setDate(due.getDate() + 14);
+  document.getElementById('fDue').value    = due.toISOString().slice(0, 10);
+  document.getElementById('fNotes').value  = '';
+  populateCustomerSelect();
+  renderLineItems();
+  openDrawer('formDrawer', 'formOverlay');
+}
+
+function openEdit(id) {
+  const inv = DB.getInvoice(id);
+  if (!inv) return;
+  lineItems = inv.lineItems.map(li => ({ ...li }));
+  document.getElementById('formTitle').textContent = `Edit ${inv.number}`;
+  document.getElementById('fId').value     = inv.id;
+  document.getElementById('fStatus').value = inv.status;
+  document.getElementById('fIssued').value = inv.issuedAt || todayISO();
+  document.getElementById('fDue').value    = inv.dueAt || '';
+  document.getElementById('fNotes').value  = inv.notes || '';
+  populateCustomerSelect(inv.customerId);
+  renderLineItems();
+  closeDetail();
+  openDrawer('formDrawer', 'formOverlay');
+}
+
+function closeForm() { closeDrawer('formDrawer', 'formOverlay'); }
+
+document.getElementById('addLineBtn').addEventListener('click', () => {
+  addLineRow('', 1, 0);
+});
+
+document.getElementById('saveInvBtn').addEventListener('click', () => {
+  const customerId = document.getElementById('fCustomer').value;
+  if (!customerId) { toast('Please select a customer', 'err'); return; }
+  if (lineItems.length === 0) { toast('Add at least one line item', 'err'); return; }
+
+  const id    = document.getElementById('fId').value || uid();
+  const total = lineItems.reduce((s, li) => s + li.total, 0);
+
+  DB.saveInvoice({
+    id,
+    customerId,
+    jobId:     DB.getInvoice(id)?.jobId || null,
+    number:    DB.getInvoice(id)?.number || DB.nextInvoiceNumber(),
+    lineItems: lineItems.map(li => ({ desc: li.desc, qty: li.qty, rate: li.rate, total: li.total })),
+    total,
+    status:    document.getElementById('fStatus').value,
+    issuedAt:  document.getElementById('fIssued').value || todayISO(),
+    dueAt:     document.getElementById('fDue').value || '',
+    notes:     document.getElementById('fNotes').value.trim(),
+  });
+
+  closeForm();
+  toast(document.getElementById('fId').value ? 'Invoice updated' : 'Invoice created');
+  render();
+});
+
+// ── Filters ───────────────────────────────────────────────────────────
+
+document.getElementById('filterBar').addEventListener('click', e => {
+  const btn = e.target.closest('.chip');
+  if (!btn) return;
+  document.querySelectorAll('#filterBar .chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  activeFilter = btn.dataset.filter;
+  render();
+});
+
+document.getElementById('newInvBtn').addEventListener('click', openNew);
+document.getElementById('emptyNewBtn').addEventListener('click', openNew);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDetail(); closeForm(); } });
+
+render();
+</script>
+</body>
+</html>

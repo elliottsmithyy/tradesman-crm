@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quotes — TradeBase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    @media print {
+      .app { display: block; }
+      .sidebar, .topbar, .tbl-wrap, .filter-bar, .topbar-right { display: none !important; }
+      .main { overflow: visible; }
+      .content { padding: 0; overflow: visible; }
+      #printArea { display: block !important; }
+      body { background: #fff; color: #111; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div id="sidebarMount"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="page-title">Quotes</span>
+      <div class="topbar-right">
+        <button class="btn btn-primary" id="newQuoteBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Quote
+        </button>
+      </div>
+    </header>
+    <main class="content">
+
+      <div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-block stat-accent">
+          <div class="stat-label">Open Value</div>
+          <div class="stat-value" id="sOpenVal">£0</div>
+          <div class="stat-sub" id="sOpenSub"></div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Accepted</div>
+          <div class="stat-value" id="sAccepted">0</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Sent (Pending)</div>
+          <div class="stat-value" id="sSent">0</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Win Rate</div>
+          <div class="stat-value" id="sWinRate">—</div>
+        </div>
+      </div>
+
+      <div class="filter-bar" id="filterBar">
+        <button class="chip active" data-filter="all">All</button>
+        <button class="chip" data-filter="draft">Draft</button>
+        <button class="chip" data-filter="sent">Sent</button>
+        <button class="chip" data-filter="accepted">Accepted</button>
+        <button class="chip" data-filter="declined">Declined</button>
+        <button class="chip" data-filter="converted">Converted</button>
+      </div>
+
+      <div class="tbl-wrap">
+        <div class="tbl-top">
+          <span class="tbl-title" id="quoteCount">All Quotes</span>
+          <div class="tbl-actions">
+            <div class="search-wrap">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input class="search-input" type="text" placeholder="Search quotes..." id="searchInput">
+            </div>
+          </div>
+        </div>
+        <table id="quoteTable">
+          <thead>
+            <tr>
+              <th>Number</th>
+              <th>Title</th>
+              <th>Customer</th>
+              <th>Issued</th>
+              <th>Valid Until</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="quoteTbody"></tbody>
+        </table>
+        <div id="quoteEmpty" class="empty" style="display:none">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 12 18 15 15"/><line x1="12" y1="12" x2="12" y2="18"/></svg>
+          <p class="empty-title">No quotes yet</p>
+          <p class="empty-desc">Create a quote to send to a customer before you start the job.</p>
+          <button class="btn btn-primary" id="emptyNewBtn">New Quote</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Detail drawer -->
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="drawer" id="detailDrawer">
+  <div class="drawer-head">
+    <span class="drawer-title" id="detailTitle">Quote</span>
+    <button class="close-btn" onclick="closeDetail()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body" id="detailBody"></div>
+  <div class="drawer-foot" id="detailFoot"></div>
+</div>
+
+<!-- Form drawer -->
+<div class="overlay" id="formOverlay" onclick="closeForm()"></div>
+<div class="drawer" id="formDrawer">
+  <div class="drawer-head">
+    <span class="drawer-title" id="formTitle">New Quote</span>
+    <button class="close-btn" onclick="closeForm()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body">
+    <div class="form-gap">
+      <input type="hidden" id="fId">
+      <div class="section-label" style="margin-top:0">Quote Details</div>
+      <div class="form-grid">
+        <div class="form-group span-2">
+          <label class="form-label">Title / Description *</label>
+          <input class="form-ctrl" type="text" id="fTitle" placeholder="e.g. Bathroom refit quote">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Customer *</label>
+          <select class="form-ctrl" id="fCustomer"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-ctrl" id="fStatus">
+            <option value="draft">Draft</option>
+            <option value="sent">Sent</option>
+            <option value="accepted">Accepted</option>
+            <option value="declined">Declined</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Issue Date</label>
+          <input class="form-ctrl" type="date" id="fIssued">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valid Until</label>
+          <input class="form-ctrl" type="date" id="fValid">
+        </div>
+      </div>
+
+      <div class="section-label">Line Items</div>
+      <table class="line-tbl">
+        <thead>
+          <tr>
+            <th style="width:50%">Description</th>
+            <th style="width:12%">Qty</th>
+            <th style="width:18%">Rate (£)</th>
+            <th style="width:15%">Total</th>
+            <th style="width:5%"></th>
+          </tr>
+        </thead>
+        <tbody id="lineItemsTbody"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="text-align:right;padding-right:12px;font-size:12.5px;color:var(--text-2)">Total</td>
+            <td id="lineTotal" class="td-num">£0.00</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+      <button class="btn btn-ghost btn-sm" id="addLineBtn" style="color:var(--accent)">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add line item
+      </button>
+
+      <div class="form-group" style="margin-top:8px">
+        <label class="form-label">Notes</label>
+        <textarea class="form-ctrl" id="fNotes" rows="2" placeholder="Validity period, exclusions, assumptions..."></textarea>
+      </div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+    <button class="btn btn-primary" id="saveQuoteBtn">Save Quote</button>
+  </div>
+</div>
+
+<div id="printArea" style="display:none"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="app.js"></script>
+<script>
+document.getElementById('sidebarMount').outerHTML = sidebarHtml('quotes.html');
+
+let activeFilter = 'all';
+
+// ── Stats ─────────────────────────────────────────────────────────────
+
+function renderStats() {
+  const quotes   = DB.getQuotes();
+  const open     = quotes.filter(q => q.status === 'draft' || q.status === 'sent');
+  const accepted = quotes.filter(q => q.status === 'accepted');
+  const sent     = quotes.filter(q => q.status === 'sent');
+  const decided  = quotes.filter(q => q.status === 'accepted' || q.status === 'declined');
+  const winRate  = decided.length > 0 ? Math.round((accepted.length / decided.length) * 100) : null;
+
+  document.getElementById('sOpenVal').textContent = fmtMoney(open.reduce((s, q) => s + (q.total || 0), 0));
+  document.getElementById('sOpenSub').textContent = `${open.length} open quote${open.length !== 1 ? 's' : ''}`;
+  document.getElementById('sAccepted').textContent = accepted.length;
+  document.getElementById('sSent').textContent = sent.length;
+  document.getElementById('sWinRate').textContent = winRate !== null ? `${winRate}%` : '—';
+}
+
+// ── Render table ──────────────────────────────────────────────────────
+
+function render(q = '') {
+  renderStats();
+  const quotes = DB.getQuotes();
+  const query  = q.toLowerCase();
+  let filtered = activeFilter === 'all' ? quotes : quotes.filter(v => v.status === activeFilter);
+  if (query) filtered = filtered.filter(v => {
+    const c = DB.getCustomer(v.customerId);
+    return v.title.toLowerCase().includes(query) || v.number.toLowerCase().includes(query) || (c?.name || '').toLowerCase().includes(query);
+  });
+  filtered.sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
+
+  document.getElementById('quoteCount').textContent = `${filtered.length} Quote${filtered.length !== 1 ? 's' : ''}`;
+
+  const tbody = document.getElementById('quoteTbody');
+  const empty = document.getElementById('quoteEmpty');
+  const table = document.getElementById('quoteTable');
+
+  if (filtered.length === 0) { table.style.display = 'none'; empty.style.display = 'flex'; return; }
+  table.style.display = ''; empty.style.display = 'none';
+
+  const today = todayISO();
+  tbody.innerHTML = filtered.map(v => {
+    const c     = DB.getCustomer(v.customerId);
+    const expd  = v.status === 'sent' && v.validUntil && v.validUntil < today;
+    return `<tr onclick="openDetail('${v.id}')" style="cursor:pointer">
+      <td><span style="font-weight:600;font-variant-numeric:tabular-nums">${escHtml(v.number)}</span></td>
+      <td><span style="font-weight:500">${escHtml(v.title)}</span></td>
+      <td class="td-muted">${escHtml(c?.name || '—')}</td>
+      <td class="td-muted td-num">${fmtDateShort(v.issuedAt)}</td>
+      <td class="td-muted td-num${expd ? '" style="color:var(--s-due)' : ''}">${fmtDateShort(v.validUntil)}${expd ? ' <span style="font-size:10px">(expired)</span>' : ''}</td>
+      <td class="td-num" style="font-weight:600">${fmtMoney(v.total)}</td>
+      <td>${badge(v.status)}</td>
+      <td class="td-actions" onclick="event.stopPropagation()">
+        ${v.status !== 'converted' ? `<button class="btn btn-ghost btn-sm" onclick="sendQuote('${v.id}')">Send</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Detail drawer ─────────────────────────────────────────────────────
+
+function openDetail(id) {
+  const q = DB.getQuote(id);
+  if (!q) return;
+  const c = DB.getCustomer(q.customerId);
+
+  document.getElementById('detailTitle').textContent = q.number;
+  document.getElementById('detailBody').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em">${escHtml(q.number)}</div>
+        <div style="font-size:13px;color:var(--text-3);margin-top:3px">${escHtml(q.title)}</div>
+      </div>
+      ${badge(q.status)}
+    </div>
+
+    <div class="section-label" style="margin-top:0">Details</div>
+    <div class="detail-field"><div class="detail-key">Customer</div><div class="detail-val">${escHtml(c?.name || '—')}</div></div>
+    <div class="detail-field"><div class="detail-key">Email</div><div class="detail-val">${c?.email ? `<a href="mailto:${escHtml(c.email)}" style="color:var(--accent)">${escHtml(c.email)}</a>` : '—'}</div></div>
+    <div class="detail-field"><div class="detail-key">Issued</div><div class="detail-val">${fmtDate(q.issuedAt)}</div></div>
+    <div class="detail-field"><div class="detail-key">Valid Until</div><div class="detail-val">${fmtDate(q.validUntil) || '—'}</div></div>
+
+    <div class="section-label">Line Items</div>
+    <table class="line-tbl">
+      <thead><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead>
+      <tbody>
+        ${q.lineItems.map(li => `<tr><td>${escHtml(li.desc)}</td><td>${li.qty}</td><td>${fmtMoney(li.rate)}</td><td class="td-num" style="font-weight:600">${fmtMoney(li.total)}</td></tr>`).join('')}
+      </tbody>
+      <tfoot><tr><td colspan="3" style="text-align:right;padding-right:12px">Total</td><td class="td-num">${fmtMoney(q.total)}</td></tr></tfoot>
+    </table>
+    ${q.notes ? `<div style="margin-top:14px;font-size:12.5px;color:var(--text-2);padding:10px;background:var(--surface-2);border-radius:var(--r)">${escHtml(q.notes)}</div>` : ''}
+
+    ${q.status !== 'converted' ? `
+    <div class="section-label">Update Status</div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      ${['draft','sent','accepted','declined'].map(s =>
+        `<button class="chip${q.status === s ? ' active' : ''}" onclick="updateStatus('${q.id}','${s}')">${{draft:'Draft',sent:'Sent',accepted:'Accepted',declined:'Declined'}[s]}</button>`
+      ).join('')}
+    </div>` : ''}
+  `;
+
+  const canConvert = q.status === 'accepted' && !q.convertedTo;
+  document.getElementById('detailFoot').innerHTML = `
+    <button class="btn btn-danger btn-sm" onclick="confirmDelete('${q.id}')">Delete</button>
+    <button class="btn btn-secondary btn-sm" onclick="printQuote('${q.id}')">Print</button>
+    <button class="btn btn-secondary btn-sm" onclick="openEdit('${q.id}')">Edit</button>
+    ${q.status !== 'converted' ? `<button class="btn btn-secondary btn-sm" onclick="sendQuote('${q.id}')">Send</button>` : ''}
+    ${canConvert ? `<button class="btn btn-primary btn-sm" onclick="convertToInvoice('${q.id}')">Convert to Invoice</button>` : ''}
+  `;
+
+  openDrawer('detailDrawer', 'overlay');
+}
+
+function closeDetail() { closeDrawer('detailDrawer', 'overlay'); }
+
+function updateStatus(id, status) {
+  const q = DB.getQuote(id); if (!q) return;
+  q.status = status; DB.saveQuote(q);
+  openDetail(id); render(document.getElementById('searchInput').value);
+  toast('Status updated');
+}
+
+function confirmDelete(id) {
+  const q = DB.getQuote(id);
+  if (!confirm(`Delete ${q?.number}?`)) return;
+  DB.deleteQuote(id); closeDetail(); toast('Quote deleted');
+  render(document.getElementById('searchInput').value);
+}
+
+function sendQuote(id) {
+  const q = DB.getQuote(id);
+  const c = DB.getCustomer(q?.customerId);
+  if (!q || !c?.email) { toast('Customer has no email address', 'err'); return; }
+
+  const settings = DB.getSettings();
+  const subject  = encodeURIComponent(`Quote ${q.number} from ${settings.businessName}`);
+  const lines    = q.lineItems.map(li => `  ${li.desc}: ${fmtMoney(li.total)}`).join('\n');
+  const validity = q.validUntil ? `\nValid Until: ${fmtDate(q.validUntil)}` : '';
+  const body     = encodeURIComponent(
+    `Hi ${c.name.split(' ')[0]},\n\nPlease find your quote details below:\n\n` +
+    `Quote: ${q.number}\nDate: ${fmtDate(q.issuedAt)}${validity}\n\n${lines}\n\nTotal: ${fmtMoney(q.total)}\n\n` +
+    (q.notes ? `Notes: ${q.notes}\n\n` : '') +
+    `To accept this quote, please reply to this email.\n\n${settings.businessName}`
+  );
+
+  window.location.href = `mailto:${c.email}?subject=${subject}&body=${body}`;
+
+  if (q.status === 'draft') { q.status = 'sent'; DB.saveQuote(q); render(); if (document.getElementById('detailDrawer').classList.contains('open')) openDetail(id); }
+  toast('Email client opened');
+}
+
+function convertToInvoice(id) {
+  const q = DB.getQuote(id); if (!q) return;
+  if (!confirm(`Convert ${q.number} to an invoice? The quote will be marked as Converted.`)) return;
+
+  const settings = DB.getSettings();
+  const dueDate  = new Date();
+  dueDate.setDate(dueDate.getDate() + parseInt(settings.paymentTerms || '14', 10));
+
+  const invId = uid();
+  DB.saveInvoice({
+    id:        invId,
+    customerId: q.customerId,
+    jobId:     null,
+    number:    DB.nextInvoiceNumber(),
+    lineItems: q.lineItems.map(li => ({ ...li })),
+    total:     q.total,
+    status:    'draft',
+    issuedAt:  todayISO(),
+    dueAt:     dueDate.toISOString().slice(0, 10),
+    notes:     settings.defaultNotes || '',
+  });
+
+  q.status      = 'converted';
+  q.convertedTo = invId;
+  DB.saveQuote(q);
+
+  closeDetail(); render();
+  toast(`Converted to ${DB.getInvoice(invId)?.number} — go to Invoices to send it`);
+}
+
+function printQuote(id) {
+  const q = DB.getQuote(id);
+  const c = DB.getCustomer(q?.customerId);
+  if (!q) return;
+  const settings = DB.getSettings();
+
+  document.getElementById('printArea').innerHTML = `
+    <div style="font-family:Inter,system-ui,sans-serif;max-width:680px;margin:40px auto;color:#111">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px">
+        <div>
+          <h1 style="font-size:28px;font-weight:700;margin-bottom:4px">${escHtml(settings.businessName)}</h1>
+          ${settings.address ? `<div style="color:#666;font-size:13px;white-space:pre-line">${escHtml(settings.address)}</div>` : ''}
+          ${settings.phone   ? `<div style="color:#666;font-size:13px">${escHtml(settings.phone)}</div>` : ''}
+          ${settings.email   ? `<div style="color:#666;font-size:13px">${escHtml(settings.email)}</div>` : ''}
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;margin-bottom:4px">Estimate / Quote</div>
+          <div style="font-size:24px;font-weight:700">${escHtml(q.number)}</div>
+          <div style="color:#888;margin-top:4px">Issued: ${fmtDate(q.issuedAt)}</div>
+          ${q.validUntil ? `<div style="color:#888">Valid Until: ${fmtDate(q.validUntil)}</div>` : ''}
+        </div>
+      </div>
+      <div style="margin-bottom:24px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#888;margin-bottom:6px">Prepared For</div>
+        <div style="font-weight:600;font-size:15px">${escHtml(c?.name || '—')}</div>
+        ${c?.address ? `<div style="color:#666;font-size:13px;margin-top:2px">${escHtml(c.address)}</div>` : ''}
+      </div>
+      <div style="margin-bottom:12px;font-size:15px;font-weight:600;color:#111">${escHtml(q.title)}</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+        <thead>
+          <tr style="border-bottom:2px solid #111">
+            <th style="text-align:left;padding:8px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Description</th>
+            <th style="text-align:right;padding:8px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Qty</th>
+            <th style="text-align:right;padding:8px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Rate</th>
+            <th style="text-align:right;padding:8px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${q.lineItems.map(li => `
+            <tr style="border-bottom:1px solid #eee">
+              <td style="padding:10px 0;font-size:14px">${escHtml(li.desc)}</td>
+              <td style="padding:10px 0;text-align:right;font-size:14px">${li.qty}</td>
+              <td style="padding:10px 0;text-align:right;font-size:14px">${fmtMoney(li.rate)}</td>
+              <td style="padding:10px 0;text-align:right;font-size:14px;font-weight:600">${fmtMoney(li.total)}</td>
+            </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="padding-top:12px;text-align:right;font-weight:700;font-size:15px">Total (estimate)</td>
+            <td style="padding-top:12px;text-align:right;font-weight:700;font-size:18px">${fmtMoney(q.total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      ${q.notes ? `<div style="padding:12px;background:#f5f5f5;border-radius:6px;font-size:13px;color:#555;margin-bottom:16px">${escHtml(q.notes)}</div>` : ''}
+      <div style="font-size:12px;color:#999;border-top:1px solid #eee;padding-top:12px">This is an estimate only. Final price may vary based on materials and any additional work found on site.</div>
+    </div>`;
+  window.print();
+}
+
+// ── Form drawer ───────────────────────────────────────────────────────
+
+let lineItems = [];
+
+function addLineRow(desc = '', qty = 1, rate = 0) {
+  lineItems.push({ desc, qty, rate, total: qty * rate });
+  renderLines();
+}
+
+function removeLineRow(i) { lineItems.splice(i, 1); renderLines(); }
+
+function renderLines() {
+  const tbody = document.getElementById('lineItemsTbody');
+  tbody.innerHTML = lineItems.map((li, i) => `
+    <tr>
+      <td><input class="form-ctrl" style="padding:5px 8px" type="text" value="${escHtml(li.desc)}" placeholder="Description" oninput="lineItems[${i}].desc=this.value;recalc()"></td>
+      <td><input class="form-ctrl" style="padding:5px 8px;width:60px" type="number" min="1" step="1" value="${li.qty}" oninput="lineItems[${i}].qty=parseFloat(this.value)||1;recalc()"></td>
+      <td><input class="form-ctrl" style="padding:5px 8px;width:90px" type="number" min="0" step="0.01" value="${li.rate}" oninput="lineItems[${i}].rate=parseFloat(this.value)||0;recalc()"></td>
+      <td class="td-num">${fmtMoney(li.total)}</td>
+      <td><button class="line-del" onclick="removeLineRow(${i})" title="Remove">✕</button></td>
+    </tr>`).join('');
+  recalc();
+}
+
+function recalc() {
+  lineItems.forEach(li => { li.total = (li.qty || 1) * (li.rate || 0); });
+  const total = lineItems.reduce((s, li) => s + li.total, 0);
+  document.getElementById('lineTotal').textContent = fmtMoney(total);
+  document.querySelectorAll('#lineItemsTbody tr').forEach((row, i) => {
+    const cells = row.querySelectorAll('td');
+    if (cells[3]) cells[3].textContent = fmtMoney(lineItems[i]?.total || 0);
+  });
+}
+
+function populateCustSelect(selId = '') {
+  const sel = document.getElementById('fCustomer');
+  sel.innerHTML = '<option value="">Select customer...</option>' +
+    DB.getCustomers().map(c => `<option value="${c.id}"${c.id === selId ? ' selected' : ''}>${escHtml(c.name)}</option>`).join('');
+}
+
+function openNew() {
+  lineItems = [{ desc: 'Labour', qty: 1, rate: 0, total: 0 }];
+  document.getElementById('formTitle').textContent = 'New Quote';
+  document.getElementById('fId').value    = '';
+  document.getElementById('fTitle').value = '';
+  document.getElementById('fStatus').value = 'draft';
+  document.getElementById('fIssued').value = todayISO();
+  const valid = new Date(); valid.setDate(valid.getDate() + 14);
+  document.getElementById('fValid').value  = valid.toISOString().slice(0, 10);
+  document.getElementById('fNotes').value  = '';
+  populateCustSelect();
+  renderLines();
+  openDrawer('formDrawer', 'formOverlay');
+  document.getElementById('fTitle').focus();
+}
+
+function openEdit(id) {
+  const q = DB.getQuote(id); if (!q) return;
+  lineItems = q.lineItems.map(li => ({ ...li }));
+  document.getElementById('formTitle').textContent = `Edit ${q.number}`;
+  document.getElementById('fId').value    = q.id;
+  document.getElementById('fTitle').value = q.title;
+  document.getElementById('fStatus').value = q.status;
+  document.getElementById('fIssued').value = q.issuedAt || todayISO();
+  document.getElementById('fValid').value  = q.validUntil || '';
+  document.getElementById('fNotes').value  = q.notes || '';
+  populateCustSelect(q.customerId);
+  renderLines();
+  closeDetail();
+  openDrawer('formDrawer', 'formOverlay');
+}
+
+function closeForm() { closeDrawer('formDrawer', 'formOverlay'); }
+
+document.getElementById('addLineBtn').addEventListener('click', () => addLineRow('', 1, 0));
+
+document.getElementById('saveQuoteBtn').addEventListener('click', () => {
+  const title      = document.getElementById('fTitle').value.trim();
+  const customerId = document.getElementById('fCustomer').value;
+  if (!title)      { toast('Title is required', 'err'); return; }
+  if (!customerId) { toast('Please select a customer', 'err'); return; }
+
+  const id    = document.getElementById('fId').value || uid();
+  const total = lineItems.reduce((s, li) => s + li.total, 0);
+
+  DB.saveQuote({
+    id,
+    customerId,
+    number:     DB.getQuote(id)?.number || DB.nextQuoteNumber(),
+    title,
+    lineItems:  lineItems.map(li => ({ ...li })),
+    total,
+    status:     document.getElementById('fStatus').value,
+    issuedAt:   document.getElementById('fIssued').value || todayISO(),
+    validUntil: document.getElementById('fValid').value || '',
+    notes:      document.getElementById('fNotes').value.trim(),
+    convertedTo: DB.getQuote(id)?.convertedTo || null,
+  });
+
+  closeForm(); toast(document.getElementById('fId').value ? 'Quote updated' : 'Quote created');
+  render(document.getElementById('searchInput').value);
+});
+
+// ── Filters ───────────────────────────────────────────────────────────
+
+document.getElementById('filterBar').addEventListener('click', e => {
+  const btn = e.target.closest('.chip'); if (!btn) return;
+  document.querySelectorAll('#filterBar .chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  activeFilter = btn.dataset.filter;
+  render(document.getElementById('searchInput').value);
+});
+
+document.getElementById('newQuoteBtn').addEventListener('click', openNew);
+document.getElementById('emptyNewBtn').addEventListener('click', openNew);
+document.getElementById('searchInput').addEventListener('input', e => render(e.target.value));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDetail(); closeForm(); } });
+
+render();
+</script>
+</body>
+</html>

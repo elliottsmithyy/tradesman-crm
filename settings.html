@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — TradeBase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <div id="sidebarMount"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="page-title">Settings</span>
+      <div class="topbar-right">
+        <button class="btn btn-secondary btn-sm" id="resetDataBtn">Reset demo data</button>
+        <button class="btn btn-primary" id="saveBtn">Save Settings</button>
+      </div>
+    </header>
+    <main class="content">
+
+      <div class="settings-grid">
+
+        <!-- Business Details -->
+        <div class="settings-card">
+          <div class="settings-card-title">Business Details</div>
+          <div class="form-gap">
+            <div class="form-group">
+              <label class="form-label">Business Name</label>
+              <input class="form-ctrl" type="text" id="sBizName" placeholder="e.g. John's Plumbing Ltd">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Your Name</label>
+              <input class="form-ctrl" type="text" id="sOwner" placeholder="e.g. John Hartley">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone</label>
+              <input class="form-ctrl" type="tel" id="sPhone" placeholder="07700 000 000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input class="form-ctrl" type="email" id="sEmail" placeholder="john@plumbing.co.uk">
+            </div>
+          </div>
+        </div>
+
+        <!-- Address & VAT -->
+        <div class="settings-card">
+          <div class="settings-card-title">Address & Tax</div>
+          <div class="form-gap">
+            <div class="form-group">
+              <label class="form-label">Business Address</label>
+              <textarea class="form-ctrl" id="sAddress" rows="3" placeholder="14 Mill Street&#10;Bradford&#10;BD1 4TH"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">VAT Number</label>
+              <input class="form-ctrl" type="text" id="sVat" placeholder="GB 123 4567 89">
+            </div>
+            <div class="form-group">
+              <label class="form-label">VAT Rate</label>
+              <select class="form-ctrl" id="sVatRate">
+                <option value="0">0% — Not VAT registered</option>
+                <option value="5">5% — Reduced rate</option>
+                <option value="20">20% — Standard rate</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Invoice Defaults -->
+        <div class="settings-card">
+          <div class="settings-card-title">Invoice Defaults</div>
+          <div class="form-gap">
+            <div class="form-group">
+              <label class="form-label">Default Payment Terms</label>
+              <select class="form-ctrl" id="sTerms">
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+                <option value="0">Due on receipt</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Default Invoice Notes</label>
+              <textarea class="form-ctrl" id="sNotes" rows="3" placeholder="e.g. Please make payment by BACS. Sort code: 12-34-56, Account: 12345678"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Assistant -->
+        <div class="settings-card">
+          <div class="settings-card-title">AI Assistant</div>
+          <div class="form-gap">
+            <p style="font-size:12.5px;color:var(--text-2);line-height:1.55">
+              Add your Anthropic API key to enable the real AI assistant. Your key is stored only in this browser — never sent anywhere except Anthropic's API.
+            </p>
+            <div class="form-group">
+              <label class="form-label">Anthropic API Key</label>
+              <input class="form-ctrl" type="password" id="sApiKey" placeholder="sk-ant-...">
+            </div>
+            <div id="apiKeyStatus" style="font-size:12px;color:var(--text-3)"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary btn-sm" id="showKeyBtn">Show key</button>
+              <button class="btn btn-danger btn-sm" id="clearKeyBtn">Remove key</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="settings-card full">
+          <div class="settings-card-title" style="color:var(--s-due)">Danger Zone</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+            <div>
+              <div style="font-size:13.5px;font-weight:500;margin-bottom:3px">Reset all data</div>
+              <div style="font-size:12.5px;color:var(--text-3)">Wipes all customers, jobs, invoices and quotes. Reloads the demo data. Cannot be undone.</div>
+            </div>
+            <button class="btn btn-danger" id="dangerResetBtn">Reset to demo data</button>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="app.js"></script>
+<script>
+document.getElementById('sidebarMount').outerHTML = sidebarHtml('settings.html');
+
+function load() {
+  const s = DB.getSettings();
+  document.getElementById('sBizName').value  = s.businessName || '';
+  document.getElementById('sOwner').value    = s.ownerName    || '';
+  document.getElementById('sPhone').value    = s.phone        || '';
+  document.getElementById('sEmail').value    = s.email        || '';
+  document.getElementById('sAddress').value  = s.address      || '';
+  document.getElementById('sVat').value      = s.vatNumber    || '';
+  document.getElementById('sVatRate').value  = s.vatRate      || '0';
+  document.getElementById('sTerms').value    = s.paymentTerms || '14';
+  document.getElementById('sNotes').value    = s.defaultNotes || '';
+
+  const key = localStorage.getItem('tb_api_key') || '';
+  document.getElementById('sApiKey').value   = key ? '••••••••••••••••' : '';
+  document.getElementById('apiKeyStatus').textContent = key
+    ? `Key saved (ends in ...${key.slice(-4)})`
+    : 'No API key set — AI assistant uses mock responses.';
+}
+
+document.getElementById('saveBtn').addEventListener('click', () => {
+  DB.saveSettings({
+    businessName: document.getElementById('sBizName').value.trim() || 'TradeBase',
+    ownerName:    document.getElementById('sOwner').value.trim(),
+    phone:        document.getElementById('sPhone').value.trim(),
+    email:        document.getElementById('sEmail').value.trim(),
+    address:      document.getElementById('sAddress').value.trim(),
+    vatNumber:    document.getElementById('sVat').value.trim(),
+    vatRate:      document.getElementById('sVatRate').value,
+    paymentTerms: document.getElementById('sTerms').value,
+    defaultNotes: document.getElementById('sNotes').value.trim(),
+  });
+
+  // Save API key if changed (not the masked placeholder)
+  const keyInput = document.getElementById('sApiKey').value.trim();
+  if (keyInput && !keyInput.startsWith('•')) {
+    localStorage.setItem('tb_api_key', keyInput);
+  }
+
+  toast('Settings saved');
+  load();
+
+  // Update sidebar brand name immediately
+  const brand = document.querySelector('.sidebar-brand');
+  if (brand) brand.textContent = DB.getSettings().businessName || 'TradeBase';
+});
+
+document.getElementById('showKeyBtn').addEventListener('click', () => {
+  const input = document.getElementById('sApiKey');
+  const key   = localStorage.getItem('tb_api_key') || '';
+  if (input.type === 'password') { input.type = 'text'; input.value = key; document.getElementById('showKeyBtn').textContent = 'Hide key'; }
+  else { input.type = 'password'; input.value = key ? '••••••••••••••••' : ''; document.getElementById('showKeyBtn').textContent = 'Show key'; }
+});
+
+document.getElementById('clearKeyBtn').addEventListener('click', () => {
+  if (!confirm('Remove the API key? The assistant will fall back to mock responses.')) return;
+  localStorage.removeItem('tb_api_key');
+  document.getElementById('sApiKey').value = '';
+  toast('API key removed');
+  load();
+});
+
+document.getElementById('dangerResetBtn').addEventListener('click', () => {
+  if (!confirm('This will wipe all data and reload the demo dataset. Are you sure?')) return;
+  localStorage.removeItem('tb_seeded_v3');
+  localStorage.removeItem('tb_customers');
+  localStorage.removeItem('tb_jobs');
+  localStorage.removeItem('tb_invoices');
+  localStorage.removeItem('tb_quotes');
+  DB.seed();
+  toast('Demo data restored');
+});
+
+load();
+</script>
+</body>
+</html>

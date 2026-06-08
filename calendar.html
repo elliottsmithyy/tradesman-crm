@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendar — TradeBase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <div id="sidebarMount"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="page-title">Calendar</span>
+      <div class="topbar-right">
+        <button class="btn btn-secondary btn-sm" id="todayBtn">Today</button>
+        <a href="jobs.html" class="btn btn-primary btn-sm">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Job
+        </a>
+      </div>
+    </header>
+    <main class="content">
+
+      <div class="cal-header">
+        <div class="cal-nav">
+          <button class="btn btn-secondary btn-sm" id="prevBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="cal-month" id="calMonth"></span>
+          <button class="btn btn-secondary btn-sm" id="nextBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="cal-views">
+          <button class="cal-view-btn active" id="btnMonth" onclick="setView('month')">Month</button>
+          <button class="cal-view-btn" id="btnWeek" onclick="setView('week')">Week</button>
+        </div>
+      </div>
+
+      <div id="calContainer"></div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Job popup drawer -->
+<div class="overlay" id="overlay" onclick="closeJobPanel()"></div>
+<div class="drawer" id="jobDrawer">
+  <div class="drawer-head">
+    <span class="drawer-title" id="jobDrawerTitle">Job</span>
+    <button class="close-btn" onclick="closeJobPanel()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body" id="jobDrawerBody"></div>
+  <div class="drawer-foot">
+    <a href="jobs.html" class="btn btn-primary btn-sm">Open in Jobs</a>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="app.js"></script>
+<script>
+document.getElementById('sidebarMount').outerHTML = sidebarHtml('calendar.html');
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'];
+
+let currentView = 'month';
+let viewDate = new Date();
+viewDate.setDate(1);
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('btnMonth').classList.toggle('active', v === 'month');
+  document.getElementById('btnWeek').classList.toggle('active', v === 'week');
+  render();
+}
+
+function render() {
+  const jobs = DB.getJobs();
+  const today = todayISO();
+
+  if (currentView === 'month') renderMonth(jobs, today);
+  else renderWeek(jobs, today);
+}
+
+function renderMonth(jobs, today) {
+  const year  = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  document.getElementById('calMonth').textContent = `${MONTHS[month]} ${year}`;
+
+  const firstDay   = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const prevDays   = new Date(year, month, 0).getDate();
+
+  let cells = '';
+
+  // Prev month padding
+  for (let i = firstDay - 1; i >= 0; i--) {
+    const d = prevDays - i;
+    cells += `<div class="cal-cell"><div class="cal-num other-month">${d}</div></div>`;
+  }
+
+  // Current month
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const isToday = dateStr === today;
+    const dayJobs = jobs.filter(j => j.date === dateStr);
+
+    const events = dayJobs.slice(0, 3).map(j => {
+      const c = DB.getCustomer(j.customerId);
+      return `<div class="cal-evt cal-evt-${j.status}" onclick="openJobPanel('${j.id}');event.stopPropagation()">${escHtml(c?.name?.split(' ')[0] || '')} — ${escHtml(j.title)}</div>`;
+    }).join('');
+    const more = dayJobs.length > 3 ? `<div style="font-size:10px;color:var(--text-3);padding:1px 3px">+${dayJobs.length - 3} more</div>` : '';
+
+    cells += `<div class="cal-cell">
+      <div class="cal-num${isToday ? ' today' : ''}">${d}</div>
+      ${events}${more}
+    </div>`;
+  }
+
+  // Next month padding
+  const totalCells = firstDay + daysInMonth;
+  const remaining  = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+  for (let d = 1; d <= remaining; d++) {
+    cells += `<div class="cal-cell"><div class="cal-num other-month">${d}</div></div>`;
+  }
+
+  document.getElementById('calContainer').innerHTML = `
+    <div class="cal-grid">
+      <div class="cal-days-row">
+        ${DAYS.map(d => `<div class="cal-day-name">${d}</div>`).join('')}
+      </div>
+      <div class="cal-body">${cells}</div>
+    </div>`;
+}
+
+function renderWeek(jobs, today) {
+  const start = new Date(viewDate);
+  start.setDate(start.getDate() - start.getDay()); // Sunday
+
+  document.getElementById('calMonth').textContent =
+    `${fmtDateShort(start.toISOString().slice(0, 10))} — ${fmtDateShort(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6).toISOString().slice(0, 10))}`;
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+
+  const header = days.map((ds, i) => {
+    const d  = new Date(ds + 'T12:00:00');
+    const isT = ds === today;
+    return `<div class="week-day-head">
+      <div class="week-day-name">${DAYS[i]}</div>
+      <div class="week-day-num${isT ? ' today' : ''}">${d.getDate()}</div>
+    </div>`;
+  }).join('');
+
+  const cols = days.map(ds => {
+    const dayJobs = jobs.filter(j => j.date === ds);
+    const events  = dayJobs.map(j => {
+      const c = DB.getCustomer(j.customerId);
+      return `<div class="cal-evt cal-evt-${j.status}" style="margin-bottom:5px;padding:5px 7px;border-radius:5px" onclick="openJobPanel('${j.id}')">
+        <div style="font-weight:600;margin-bottom:1px">${escHtml(j.title)}</div>
+        <div style="opacity:0.75">${escHtml(c?.name || '?')}</div>
+      </div>`;
+    }).join('');
+    return `<div class="week-col">${events || ''}</div>`;
+  }).join('');
+
+  document.getElementById('calContainer').innerHTML = `
+    <div class="week-grid">
+      <div class="week-header">${header}</div>
+      <div class="week-body">${cols}</div>
+    </div>`;
+}
+
+// ── Job panel ─────────────────────────────────────────────────────────
+
+function openJobPanel(id) {
+  const j = DB.getJob(id);
+  if (!j) return;
+  const c = DB.getCustomer(j.customerId);
+  document.getElementById('jobDrawerTitle').textContent = j.title;
+  document.getElementById('jobDrawerBody').innerHTML = `
+    <div class="detail-field" style="margin-top:0"><div class="detail-key">Status</div><div class="detail-val">${badge(j.status)}</div></div>
+    <div class="detail-field"><div class="detail-key">Date</div><div class="detail-val">${fmtDate(j.date)}</div></div>
+    <div class="detail-field"><div class="detail-key">Customer</div><div class="detail-val">${escHtml(c?.name || '—')}</div></div>
+    <div class="detail-field"><div class="detail-key">Location</div><div class="detail-val">${escHtml(j.location || c?.address || '—')}</div></div>
+    ${j.description ? `<div class="detail-field"><div class="detail-key">Description</div><div class="detail-val">${escHtml(j.description)}</div></div>` : ''}
+    ${j.notes ? `<div class="detail-field"><div class="detail-key">Notes</div><div class="detail-val">${escHtml(j.notes)}</div></div>` : ''}
+  `;
+  openDrawer('jobDrawer', 'overlay');
+}
+
+function closeJobPanel() { closeDrawer('jobDrawer', 'overlay'); }
+
+// ── Navigation ────────────────────────────────────────────────────────
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  if (currentView === 'month') {
+    viewDate.setMonth(viewDate.getMonth() - 1);
+  } else {
+    viewDate.setDate(viewDate.getDate() - 7);
+  }
+  render();
+});
+
+document.getElementById('nextBtn').addEventListener('click', () => {
+  if (currentView === 'month') {
+    viewDate.setMonth(viewDate.getMonth() + 1);
+  } else {
+    viewDate.setDate(viewDate.getDate() + 7);
+  }
+  render();
+});
+
+document.getElementById('todayBtn').addEventListener('click', () => {
+  viewDate = new Date();
+  viewDate.setDate(1);
+  render();
+});
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeJobPanel(); });
+
+render();
+</script>
+</body>
+</html>

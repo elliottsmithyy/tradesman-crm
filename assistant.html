@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Assistant — TradeBase</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <div id="sidebarMount"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="page-title">AI Assistant</span>
+      <div class="topbar-right">
+        <span id="modelBadge" style="font-size:11px;color:var(--text-3);padding:3px 8px;background:var(--surface-2);border-radius:var(--r);border:1px solid var(--border-subtle)"></span>
+        <button class="btn btn-ghost btn-sm" id="clearBtn">Clear</button>
+      </div>
+    </header>
+    <main class="content" style="padding:16px">
+
+      <!-- API key setup screen -->
+      <div id="setupScreen" style="display:none;height:calc(100vh - var(--topbar-h) - 32px)">
+        <div class="ai-setup">
+          <div class="ai-setup-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <h2>Connect AI Assistant</h2>
+          <p>Add your Anthropic API key to enable real AI. The assistant will read your live business data and can create customers, jobs, and invoices on your behalf.</p>
+          <input class="form-ctrl" type="password" id="setupKey" placeholder="sk-ant-api03-..." autocomplete="off">
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" id="setupSaveBtn">Save & Connect</button>
+            <button class="btn btn-ghost" id="setupSkipBtn">Use mock responses</button>
+          </div>
+          <p style="font-size:11.5px;color:var(--text-3)">Your key is stored only in this browser. You can change it in Settings.</p>
+        </div>
+      </div>
+
+      <!-- Chat interface -->
+      <div class="chat-layout" id="chatLayout">
+        <div class="chat-main">
+          <div class="chat-msgs" id="chatMsgs"></div>
+          <div class="chat-input-row">
+            <textarea class="chat-textarea" id="chatInput" placeholder="Ask anything about your business..." rows="1"></textarea>
+            <button class="chat-send" id="sendBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="chat-side">
+          <div class="info-block">
+            <div class="info-block-title">Quick Questions</div>
+            <div id="qaList"></div>
+          </div>
+          <div class="info-block" id="dataSnap">
+            <div class="info-block-title">Live Data</div>
+            <div id="snapContent"></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="app.js"></script>
+<script>
+document.getElementById('sidebarMount').outerHTML = sidebarHtml('assistant.html');
+
+// ── State ─────────────────────────────────────────────────────────────
+let apiKey      = localStorage.getItem('tb_api_key') || '';
+let useMock     = !apiKey;
+let isThinking  = false;
+let history     = []; // Anthropic message format
+
+// ── Quick questions ───────────────────────────────────────────────────
+const QUICK = [
+  { label: "Today's jobs",          q: "What are today's jobs?" },
+  { label: 'Outstanding invoices',  q: 'What invoices are outstanding?' },
+  { label: 'Overdue payments',      q: 'Any overdue invoices?' },
+  { label: 'This week',             q: 'What jobs are coming up this week?' },
+  { label: 'Revenue summary',       q: 'What is my total paid revenue?' },
+  { label: 'Customer list',         q: 'List all my customers.' },
+];
+
+document.getElementById('qaList').innerHTML = QUICK.map(qa =>
+  `<button class="qa-btn" onclick="ask(${JSON.stringify(qa.q)})">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 14 14"/></svg>
+    <span>${escHtml(qa.label)}</span>
+  </button>`
+).join('');
+
+// ── Data snapshot panel ───────────────────────────────────────────────
+function renderSnap() {
+  const jobs     = DB.getJobs();
+  const invs     = DB.getInvoices();
+  const today    = todayISO();
+  const todayJ   = jobs.filter(j => j.date === today).length;
+  const unpaid   = invs.filter(i => i.status === 'sent' || i.status === 'overdue');
+  const unpaidAmt = unpaid.reduce((s, i) => s + (i.total || 0), 0);
+  const overdue  = invs.filter(i => i.status === 'overdue').length;
+  const items = [
+    { label: 'Customers',   val: DB.getCustomers().length },
+    { label: 'Today',       val: `${todayJ} job${todayJ !== 1 ? 's' : ''}` },
+    { label: 'Outstanding', val: fmtMoney(unpaidAmt), alert: unpaidAmt > 0 },
+    { label: 'Overdue',     val: overdue,              alert: overdue > 0 },
+  ];
+  document.getElementById('snapContent').innerHTML = items.map(it =>
+    `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-subtle);font-size:12.5px">
+       <span style="color:var(--text-3)">${it.label}</span>
+       <span style="font-weight:600;color:${it.alert ? 'var(--accent)' : 'var(--text-1)'}">${it.val}</span>
+     </div>`
+  ).join('');
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────
+function showMsg(role, html, isHtml = false) {
+  const msgs = document.getElementById('chatMsgs');
+  const div  = document.createElement('div');
+  div.className = `chat-msg ${role}`;
+  div.innerHTML = `
+    <div class="chat-av">${role === 'user' ? 'You' : 'AI'}</div>
+    <div class="chat-bubble">${isHtml ? html : escHtml(html).replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code style="background:var(--surface-3);padding:1px 5px;border-radius:3px;font-family:monospace;font-size:11.5px">$1</code>')}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('chatMsgs');
+  const el   = document.createElement('div');
+  el.id = 'typing'; el.className = 'chat-msg assistant';
+  el.innerHTML = `<div class="chat-av">AI</div><div class="chat-bubble"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function hideTyping() { document.getElementById('typing')?.remove(); }
+
+function showToolCall(name) {
+  const msgs = document.getElementById('chatMsgs');
+  const el   = document.createElement('div');
+  el.className = 'chat-msg assistant';
+  el.id = 'toolcall';
+  el.innerHTML = `<div class="chat-av">AI</div><div class="chat-bubble tool-bubble">Running: ${escHtml(name)}...</div>`;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function clearToolCall() { document.getElementById('toolcall')?.remove(); }
+
+// ── Tool definitions ──────────────────────────────────────────────────
+const TOOLS = [
+  {
+    name: 'query_data',
+    description: 'Query current data from the CRM. Use this to look up customers, jobs, invoices, or quotes before answering questions.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        entity: { type: 'string', enum: ['customers', 'jobs', 'invoices', 'quotes', 'settings'] },
+        filter: { type: 'string', description: 'Optional filter: e.g. status=overdue, customerId=c1, date=today' }
+      },
+      required: ['entity']
+    }
+  },
+  {
+    name: 'create_customer',
+    description: 'Create a new customer in the CRM.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name:    { type: 'string', description: 'Full name' },
+        phone:   { type: 'string' },
+        email:   { type: 'string' },
+        address: { type: 'string' },
+        notes:   { type: 'string' }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'create_job',
+    description: 'Create a new job. Requires a valid customerId from the CRM.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title:       { type: 'string' },
+        customerId:  { type: 'string' },
+        date:        { type: 'string', description: 'ISO date YYYY-MM-DD' },
+        description: { type: 'string' },
+        status:      { type: 'string', enum: ['scheduled', 'inprogress', 'completed', 'invoiced'] },
+        location:    { type: 'string' }
+      },
+      required: ['title', 'customerId']
+    }
+  },
+  {
+    name: 'update_job_status',
+    description: 'Update the status of an existing job.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        jobId:  { type: 'string' },
+        status: { type: 'string', enum: ['scheduled', 'inprogress', 'completed', 'invoiced'] }
+      },
+      required: ['jobId', 'status']
+    }
+  },
+  {
+    name: 'create_invoice',
+    description: 'Create a draft invoice for a customer.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        customerId: { type: 'string' },
+        lineItems:  {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              desc:  { type: 'string' },
+              qty:   { type: 'number' },
+              rate:  { type: 'number' },
+              total: { type: 'number' }
+            },
+            required: ['desc', 'qty', 'rate', 'total']
+          }
+        },
+        notes: { type: 'string' }
+      },
+      required: ['customerId', 'lineItems']
+    }
+  },
+  {
+    name: 'mark_invoice_paid',
+    description: 'Mark an invoice as paid.',
+    input_schema: {
+      type: 'object',
+      properties: { invoiceId: { type: 'string' } },
+      required: ['invoiceId']
+    }
+  }
+];
+
+// ── Tool execution ────────────────────────────────────────────────────
+function executeTool(name, input) {
+  try {
+    switch (name) {
+      case 'query_data': {
+        const { entity, filter } = input;
+        let data;
+        if (entity === 'customers') data = DB.getCustomers();
+        else if (entity === 'jobs') {
+          data = DB.getJobs();
+          if (filter === 'date=today') data = data.filter(j => j.date === todayISO());
+          else if (filter?.startsWith('status=')) data = data.filter(j => j.status === filter.split('=')[1]);
+          else if (filter?.startsWith('customerId=')) data = data.filter(j => j.customerId === filter.split('=')[1]);
+        }
+        else if (entity === 'invoices') {
+          data = DB.getInvoices();
+          if (filter?.startsWith('status=')) data = data.filter(i => i.status === filter.split('=')[1]);
+          else if (filter?.startsWith('customerId=')) data = data.filter(i => i.customerId === filter.split('=')[1]);
+        }
+        else if (entity === 'quotes') {
+          data = DB.getQuotes();
+          if (filter?.startsWith('status=')) data = data.filter(q => q.status === filter.split('=')[1]);
+        }
+        else if (entity === 'settings') data = DB.getSettings();
+
+        // Enrich with customer names where possible
+        if (Array.isArray(data) && data[0]?.customerId) {
+          data = data.map(item => {
+            const c = DB.getCustomer(item.customerId);
+            return { ...item, customerName: c?.name || 'Unknown' };
+          });
+        }
+        return { success: true, data, count: Array.isArray(data) ? data.length : 1 };
+      }
+
+      case 'create_customer': {
+        const id = uid();
+        DB.saveCustomer({ id, createdAt: todayISO(), ...input });
+        return { success: true, id, message: `Customer "${input.name}" created with ID ${id}` };
+      }
+
+      case 'create_job': {
+        const id = uid();
+        DB.saveJob({ id, createdAt: todayISO(), invoiceId: null, status: 'scheduled', ...input });
+        return { success: true, id, message: `Job "${input.title}" created` };
+      }
+
+      case 'update_job_status': {
+        const job = DB.getJob(input.jobId);
+        if (!job) return { success: false, error: `Job ${input.jobId} not found` };
+        job.status = input.status;
+        DB.saveJob(job);
+        return { success: true, message: `Job "${job.title}" status updated to ${input.status}` };
+      }
+
+      case 'create_invoice': {
+        const id      = uid();
+        const settings = DB.getSettings();
+        const dueDate  = new Date();
+        dueDate.setDate(dueDate.getDate() + parseInt(settings.paymentTerms || '14', 10));
+        const total = input.lineItems.reduce((s, li) => s + (li.total || li.qty * li.rate || 0), 0);
+        DB.saveInvoice({
+          id,
+          jobId:    null,
+          number:   DB.nextInvoiceNumber(),
+          status:   'draft',
+          issuedAt: todayISO(),
+          dueAt:    dueDate.toISOString().slice(0, 10),
+          notes:    input.notes || settings.defaultNotes || '',
+          total,
+          ...input,
+        });
+        const inv = DB.getInvoice(id);
+        return { success: true, id, number: inv.number, total, message: `Invoice ${inv.number} created for £${total}` };
+      }
+
+      case 'mark_invoice_paid': {
+        const inv = DB.getInvoice(input.invoiceId);
+        if (!inv) return { success: false, error: `Invoice ${input.invoiceId} not found` };
+        inv.status = 'paid';
+        DB.saveInvoice(inv);
+        return { success: true, message: `Invoice ${inv.number} marked as paid` };
+      }
+
+      default: return { success: false, error: `Unknown tool: ${name}` };
+    }
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ── System prompt ─────────────────────────────────────────────────────
+function buildSystemPrompt() {
+  const settings  = DB.getSettings();
+  const customers = DB.getCustomers();
+  const jobs      = DB.getJobs();
+  const invoices  = DB.getInvoices();
+  const today     = todayISO();
+
+  const todayJobs = jobs.filter(j => j.date === today);
+  const overdue   = invoices.filter(i => i.status === 'overdue');
+  const unpaid    = invoices.filter(i => i.status === 'sent' || i.status === 'overdue');
+
+  return `You are TradeBase AI, an intelligent assistant for ${settings.businessName || 'a tradesman'}. You help manage customers, jobs, invoices, and quotes.
+
+Today's date: ${today}
+
+BUSINESS SNAPSHOT:
+- ${customers.length} customers
+- ${jobs.length} jobs (${todayJobs.length} today, ${jobs.filter(j => j.status === 'scheduled').length} scheduled, ${jobs.filter(j => j.status === 'inprogress').length} in progress)
+- ${invoices.length} invoices (${overdue.length} overdue, £${unpaid.reduce((s,i) => s+(i.total||0),0).toFixed(2)} outstanding)
+- ${DB.getQuotes().length} quotes
+
+CUSTOMER IDs (for tool use):
+${customers.map(c => `  ${c.id}: ${c.name} (${c.email || c.phone || 'no contact'})`).join('\n')}
+
+JOB IDs (for tool use):
+${jobs.slice(0, 10).map(j => `  ${j.id}: "${j.title}" — ${j.status} — ${j.date}`).join('\n')}${jobs.length > 10 ? `\n  ...and ${jobs.length - 10} more` : ''}
+
+INVOICE IDs (for tool use):
+${invoices.slice(0, 8).map(i => `  ${i.id}: ${i.number} — ${i.status} — £${i.total}`).join('\n')}
+
+RULES:
+- Be concise and direct. This is a busy tradesman, not a corporate user.
+- Use £ for currency. Use UK date format (e.g. 8 Jun 2026).
+- When asked to create or update something, use the appropriate tool — don't just describe it.
+- After using a tool successfully, confirm what you did in plain English.
+- If asked about data, use query_data first to get fresh results.
+- Never make up data — only report what the tools return.`;
+}
+
+// ── Real API call ─────────────────────────────────────────────────────
+async function callAPI(userMessage) {
+  history.push({ role: 'user', content: userMessage });
+
+  const systemPrompt = buildSystemPrompt();
+  let messages = [...history];
+
+  for (let round = 0; round < 6; round++) {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages,
+        tools: TOOLS,
+      }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || `API error ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    messages.push({ role: 'assistant', content: data.content });
+
+    if (data.stop_reason === 'end_turn') {
+      const text = data.content.find(b => b.type === 'text')?.text || '';
+      history = messages;
+      return text;
+    }
+
+    if (data.stop_reason === 'tool_use') {
+      const toolResults = [];
+      for (const block of data.content) {
+        if (block.type !== 'tool_use') continue;
+        clearToolCall();
+        showToolCall(block.name);
+        const result = executeTool(block.name, block.input);
+        renderSnap(); // refresh live data panel after mutations
+        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
+      }
+      clearToolCall();
+      messages.push({ role: 'user', content: toolResults });
+      continue;
+    }
+
+    break;
+  }
+
+  history = messages;
+  return data?.content?.find(b => b.type === 'text')?.text || '(no response)';
+}
+
+// ── Mock fallback ─────────────────────────────────────────────────────
+function mockResponse(q) {
+  const lq = q.toLowerCase();
+  const customers = DB.getCustomers();
+  const jobs      = DB.getJobs();
+  const invoices  = DB.getInvoices();
+  const today     = todayISO();
+
+  if (/today'?s? jobs?|on today|jobs? today/i.test(lq)) {
+    const tj = jobs.filter(j => j.date === today);
+    if (!tj.length) return 'No jobs scheduled for today.';
+    return `**${tj.length} job${tj.length > 1 ? 's' : ''} today:**\n\n` + tj.map(j => { const c = DB.getCustomer(j.customerId); return `• **${j.title}** — ${c?.name || '?'} (${j.status})`; }).join('\n');
+  }
+  if (/outstanding|unpaid|owe/i.test(lq)) {
+    const u = invoices.filter(i => i.status === 'sent' || i.status === 'overdue');
+    if (!u.length) return 'No outstanding invoices.';
+    return `**${fmtMoney(u.reduce((s, i) => s + (i.total || 0), 0))} outstanding** across ${u.length} invoice${u.length > 1 ? 's' : ''}:\n\n` + u.map(i => { const c = DB.getCustomer(i.customerId); return `• **${i.number}** — ${c?.name || '?'} — ${fmtMoney(i.total)} (${i.status})`; }).join('\n');
+  }
+  if (/overdue|late|past due/i.test(lq)) {
+    const o = invoices.filter(i => i.status === 'overdue');
+    if (!o.length) return 'No overdue invoices.';
+    return `**${o.length} overdue:**\n\n` + o.map(i => { const c = DB.getCustomer(i.customerId); return `• **${i.number}** — ${c?.name || '?'} — ${fmtMoney(i.total)} (due ${fmtDate(i.dueAt)})`; }).join('\n');
+  }
+  if (/how many customers|customer count/i.test(lq)) return `**${customers.length} customers** on record. Most recent: **${customers[0]?.name || '?'}**.`;
+  if (/list.*customers|show.*customers/i.test(lq)) return customers.slice(0, 8).map(c => `• **${c.name}** — ${c.phone || c.email || 'no contact'}`).join('\n');
+  if (/this week|upcoming|coming up/i.test(lq)) {
+    const days = Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d.toISOString().slice(0,10);});
+    const wj = jobs.filter(j => days.includes(j.date)).sort((a,b) => a.date.localeCompare(b.date));
+    if (!wj.length) return 'Nothing scheduled this week.';
+    return `**${wj.length} job${wj.length > 1 ? 's' : ''} this week:**\n\n` + wj.map(j => { const c = DB.getCustomer(j.customerId); return `• **${fmtDateShort(j.date)}** — ${j.title} (${c?.name || '?'}) — ${j.status}`; }).join('\n');
+  }
+  if (/revenue|total paid|earned|income/i.test(lq)) {
+    const paid = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.total || 0), 0);
+    const pend = invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + (i.total || 0), 0);
+    return `Total paid revenue: **${fmtMoney(paid)}**\n\nPending: **${fmtMoney(pend)}**`;
+  }
+  if (/create|add|new/i.test(lq)) return `To create something, go to the relevant page — or connect an Anthropic API key in **Settings** so I can do it from here.`;
+  if (/help|what can you/i.test(lq)) return `I can:\n\n• Answer questions about customers, jobs, invoices, quotes\n• Show today's schedule and upcoming work\n• Report outstanding and overdue invoices\n\nConnect an API key in **Settings** to also create records by chat.`;
+  if (/^(hi|hello|hey|morning)/i.test(lq)) {
+    const tj = jobs.filter(j => j.date === today).length;
+    const od = invoices.filter(i => i.status === 'overdue').length;
+    return `Hey. ${tj > 0 ? `**${tj} job${tj > 1 ? 's' : ''}** on today.` : 'No jobs today.'} ${od > 0 ? `**${od} overdue invoice${od > 1 ? 's' : ''}** need attention.` : 'Invoices all current.'}\n\nWhat do you need?`;
+  }
+  return `I didn't catch that. Try asking about today's jobs, outstanding invoices, or a specific customer.`;
+}
+
+// ── Main send ─────────────────────────────────────────────────────────
+async function sendMessage() {
+  if (isThinking) return;
+  const input = document.getElementById('chatInput');
+  const q     = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  input.style.height = 'auto';
+  showMsg('user', q);
+  isThinking = true;
+  showTyping();
+
+  try {
+    let reply;
+    if (useMock) {
+      await new Promise(r => setTimeout(r, 500 + Math.random() * 600));
+      reply = mockResponse(q);
+    } else {
+      hideTyping();
+      reply = await callAPI(q);
+    }
+    hideTyping();
+    showMsg('assistant', reply);
+    renderSnap();
+  } catch (err) {
+    hideTyping();
+    showMsg('assistant', `Error: ${err.message}\n\nCheck your API key in Settings.`);
+    console.error(err);
+  }
+  isThinking = false;
+}
+
+function ask(q) {
+  document.getElementById('chatInput').value = q;
+  sendMessage();
+}
+
+// ── Setup / init ──────────────────────────────────────────────────────
+function initChat() {
+  const setup  = document.getElementById('setupScreen');
+  const layout = document.getElementById('chatLayout');
+  const badge  = document.getElementById('modelBadge');
+
+  apiKey  = localStorage.getItem('tb_api_key') || '';
+  useMock = !apiKey;
+
+  if (apiKey) {
+    setup.style.display  = 'none';
+    layout.style.display = '';
+    badge.textContent    = 'claude-haiku-4-5';
+    badge.style.color    = 'var(--accent)';
+  } else {
+    setup.style.display  = 'flex';
+    layout.style.display = 'none';
+    badge.textContent    = 'mock mode';
+    badge.style.color    = 'var(--text-3)';
+  }
+
+  renderSnap();
+
+  // Welcome message
+  if (document.getElementById('chatMsgs').children.length === 0) {
+    const settings  = DB.getSettings();
+    const jobs      = DB.getJobs();
+    const invoices  = DB.getInvoices();
+    const todayJ    = jobs.filter(j => j.date === todayISO()).length;
+    const overdue   = invoices.filter(i => i.status === 'overdue').length;
+    const unpaidAmt = invoices.filter(i => i.status === 'sent' || i.status === 'overdue').reduce((s, i) => s + (i.total || 0), 0);
+
+    const lines = [`Morning${settings.businessName && settings.businessName !== 'TradeBase' ? `, ${settings.ownerName || settings.businessName}` : ''}.`];
+    if (todayJ > 0) lines.push(`**${todayJ} job${todayJ > 1 ? 's' : ''}** on today.`);
+    if (overdue > 0) lines.push(`**${overdue} overdue** invoice${overdue > 1 ? 's' : ''} (${fmtMoney(unpaidAmt)} outstanding).`);
+    if (!todayJ && !overdue) lines.push('Clear schedule today.');
+    lines.push(`\n${useMock ? 'Ask me anything, or connect an API key in Settings for full AI.' : 'Ask me anything — I can create records too.'}`);
+    showMsg('assistant', lines.join(' '));
+  }
+}
+
+// Setup screen handlers
+document.getElementById('setupSaveBtn').addEventListener('click', () => {
+  const key = document.getElementById('setupKey').value.trim();
+  if (!key.startsWith('sk-ant')) { toast('Looks like an invalid key format', 'err'); return; }
+  localStorage.setItem('tb_api_key', key);
+  history = [];
+  initChat();
+  toast('API key saved');
+});
+
+document.getElementById('setupSkipBtn').addEventListener('click', () => {
+  document.getElementById('setupScreen').style.display = 'none';
+  document.getElementById('chatLayout').style.display  = '';
+  document.getElementById('modelBadge').textContent    = 'mock mode';
+  useMock = true;
+  initChat();
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  history = [];
+  document.getElementById('chatMsgs').innerHTML = '';
+  initChat();
+});
+
+document.getElementById('sendBtn').addEventListener('click', sendMessage);
+document.getElementById('chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+document.getElementById('chatInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 110) + 'px';
+});
+
+initChat();
+</script>
+</body>
+</html>
