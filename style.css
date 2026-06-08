@@ -413,11 +413,161 @@ textarea.form-ctrl { resize: vertical; min-height: 72px; }
 .stat-sub { font-size: 11.5px; color: var(--text-3); margin-top: 6px; }
 .stat-accent .stat-value { color: var(--accent); }
 
+/* === DASHBOARD GREETING === */
+.dash-greeting {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.dash-greeting-name {
+  font-size: 23px;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.028em;
+  line-height: 1.15;
+}
+
+.dash-greeting-date {
+  font-size: 12.5px;
+  color: var(--text-3);
+  margin-top: 5px;
+}
+
+.dash-summary {
+  font-size: 12.5px;
+  color: var(--text-2);
+  text-align: right;
+  line-height: 1.6;
+}
+
+/* === JOB CARDS === */
+.job-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  padding: 13px 15px;
+  margin-bottom: 8px;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.job-card:last-child { margin-bottom: 0; }
+.job-card:hover { border-color: var(--border); }
+
+.job-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.job-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.job-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin-bottom: 11px;
+  flex-wrap: wrap;
+}
+
+.job-card-sep { color: var(--text-3); }
+
+.job-card-loc {
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+.job-card-foot { display: flex; align-items: center; gap: 6px; }
+
+/* === OVERDUE ALERT === */
+.overdue-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--s-due-bg);
+  border: 1px solid oklch(0.62 0.18 25 / 0.22);
+  border-radius: var(--r-lg);
+  padding: 12px 14px;
+}
+
+.overdue-alert-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--s-due);
+  color: oklch(0.97 0.004 50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.overdue-alert-body { flex: 1; min-width: 0; }
+.overdue-alert-title { font-size: 13px; font-weight: 600; color: var(--s-due); }
+.overdue-alert-sub   { font-size: 12px; color: var(--text-3); margin-top: 1px; }
+
+/* === TIMELINE === */
+.timeline-day { margin-bottom: 14px; }
+.timeline-day:last-child { margin-bottom: 0; }
+
+.timeline-day-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 6px;
+}
+
+.timeline-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.timeline-item:last-child { border-bottom: none; }
+
+.tl-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border);
+}
+.tl-dot-scheduled  { background: var(--s-sched); }
+.tl-dot-inprogress { background: var(--s-prog); }
+.tl-dot-completed  { background: var(--s-done); }
+
+.tl-content { flex: 1; min-width: 0; }
+.tl-title { font-size: 13px; color: var(--text-1); font-weight: 500; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-meta  { font-size: 11.5px; color: var(--text-3); display: block; margin-top: 1px; }
+
 /* === DASHBOARD GRID === */
 .dash-grid {
   display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 16px;
+  grid-template-columns: 1fr 300px;
+  gap: 14px;
 }
 
 /* === ACTIVITY === */
