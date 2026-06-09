@@ -109,7 +109,15 @@ function quickStatus(jobId, status, event) {
   j.status = status;
   DB.saveJob(j);
   toast('Marked ' + { inprogress: 'in progress', completed: 'complete' }[status]);
-  render();
+  const card = event.target.closest('.job-card');
+  if (card) {
+    card.style.transition = 'opacity 140ms ease, transform 140ms ease';
+    card.style.opacity    = '0';
+    card.style.transform  = 'translateX(10px)';
+    setTimeout(render, 150);
+  } else {
+    render();
+  }
 }
 
 function render() {
@@ -172,13 +180,13 @@ function render() {
   } else {
     listEl.style.display  = '';
     emptyEl.style.display = 'none';
-    listEl.innerHTML = todayJobs.map(j => {
+    listEl.innerHTML = todayJobs.map((j, i) => {
       const c          = DB.getCustomer(j.customerId);
       const nextStatus = j.status === 'scheduled'  ? 'inprogress'
                        : j.status === 'inprogress' ? 'completed' : null;
       const nextLabel  = nextStatus === 'inprogress' ? 'Start job'
                        : nextStatus === 'completed'  ? 'Mark complete' : null;
-      return `<div class="job-card">
+      return `<div class="job-card row-enter" style="animation-delay:${i*40}ms">
         <div class="job-card-head">
           <span class="job-card-title">${escHtml(j.title)}</span>
           ${badge(j.status)}

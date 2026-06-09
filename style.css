@@ -1328,6 +1328,19 @@ textarea.form-ctrl { resize: vertical; min-height: 72px; }
   animation: badgePulse 260ms var(--ease-out-quint);
 }
 
+/* === ROW ENTRANCE ===
+   Staggered table row / card entrance on list renders.
+   Delay is set inline by JS: animation-delay: i * 25ms */
+
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.row-enter {
+  animation: rowIn 220ms var(--ease-out-quint) both;
+}
+
 /* === STAT COUNT ===
    Applied via JS to stat values while counting.
    Accent tint during animation, resolves on completion. */
@@ -1686,6 +1699,12 @@ canvas { display: block; }
   max-height: 360px;
   overflow-y: auto;
   padding-bottom: 6px;
+  transition: opacity 80ms ease;
+}
+
+.cmd-body.fading {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .cmd-group-label {

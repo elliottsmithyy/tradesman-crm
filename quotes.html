@@ -239,10 +239,10 @@ function render(q = '') {
   table.style.display = ''; empty.style.display = 'none';
 
   const today = todayISO();
-  tbody.innerHTML = filtered.map(v => {
+  tbody.innerHTML = filtered.map((v, i) => {
     const c     = DB.getCustomer(v.customerId);
     const expd  = v.status === 'sent' && v.validUntil && v.validUntil < today;
-    return `<tr onclick="openDetail('${v.id}')" style="cursor:pointer">
+    return `<tr class="row-enter" onclick="openDetail('${v.id}')" style="cursor:pointer;animation-delay:${Math.min(i,10)*25}ms">
       <td><span style="font-weight:600;font-variant-numeric:tabular-nums">${escHtml(v.number)}</span></td>
       <td class="col-hide-sm"><span style="font-weight:500">${escHtml(v.title)}</span></td>
       <td class="td-muted col-hide-sm">${escHtml(c?.name || '—')}</td>

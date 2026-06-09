@@ -178,10 +178,10 @@ function render(q = '') {
   table.style.display = '';
   empty.style.display = 'none';
 
-  tbody.innerHTML = filtered.map(j => {
+  tbody.innerHTML = filtered.map((j, i) => {
     const c = DB.getCustomer(j.customerId);
     const isToday = j.date === todayISO();
-    return `<tr onclick="openDetail('${j.id}')" style="cursor:pointer">
+    return `<tr class="row-enter" onclick="openDetail('${j.id}')" style="cursor:pointer;animation-delay:${Math.min(i,10)*25}ms">
       <td>
         <span style="font-weight:500">${escHtml(j.title)}</span>
         ${isToday ? `<span style="font-size:10.5px;font-weight:600;color:var(--accent);margin-left:7px;text-transform:uppercase;letter-spacing:0.04em">Today</span>` : ''}
@@ -277,6 +277,13 @@ function updateStatus(id, status) {
   openDetail(id);
   render(document.getElementById('searchInput').value);
   toast('Status updated');
+  requestAnimationFrame(() => {
+    const b = document.querySelector('#detailBody .badge');
+    if (b) {
+      b.classList.add('badge-pulse');
+      b.addEventListener('animationend', () => b.classList.remove('badge-pulse'), { once: true });
+    }
+  });
 }
 
 function confirmDelete(id) {

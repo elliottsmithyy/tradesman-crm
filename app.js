@@ -412,27 +412,38 @@ function initCommandPalette() {
     if (items[idx]) { closePalette(); items[idx].action(); }
   }
 
-  function renderItems(sections) {
-    items = [];
-    let html = '';
-    sections.forEach(sec => {
-      if (!sec.items.length) return;
-      const start = items.length;
-      items.push(...sec.items);
-      if (sec.label) html += `<div class="cmd-group-label">${sec.label}</div>`;
-      sec.items.forEach((item, i) => {
-        html += `<div class="cmd-item" data-idx="${start + i}">
-          <div class="cmd-item-icon">${ICONS[item.icon] || ICONS.list}</div>
-          <div class="cmd-item-text">
-            <div class="cmd-item-label">${escHtml(item.label)}</div>
-            ${item.sub ? `<div class="cmd-item-sub">${escHtml(item.sub)}</div>` : ''}
-          </div>
-          ${item.hint ? `<div class="cmd-item-hint">${escHtml(item.hint)}</div>` : ''}
-        </div>`;
+  let cmdMode = 'default';
+
+  function renderItems(sections, fade) {
+    const doSwap = () => {
+      items = [];
+      let html = '';
+      sections.forEach(sec => {
+        if (!sec.items.length) return;
+        const start = items.length;
+        items.push(...sec.items);
+        if (sec.label) html += `<div class="cmd-group-label">${sec.label}</div>`;
+        sec.items.forEach((item, i) => {
+          html += `<div class="cmd-item" data-idx="${start + i}">
+            <div class="cmd-item-icon">${ICONS[item.icon] || ICONS.list}</div>
+            <div class="cmd-item-text">
+              <div class="cmd-item-label">${escHtml(item.label)}</div>
+              ${item.sub ? `<div class="cmd-item-sub">${escHtml(item.sub)}</div>` : ''}
+            </div>
+            ${item.hint ? `<div class="cmd-item-hint">${escHtml(item.hint)}</div>` : ''}
+          </div>`;
+        });
       });
-    });
-    body.innerHTML = items.length ? html : `<div class="cmd-empty">No results found</div>`;
-    selIdx = -1;
+      body.innerHTML = items.length ? html : `<div class="cmd-empty">No results found</div>`;
+      selIdx = -1;
+      body.classList.remove('fading');
+    };
+    if (fade) {
+      body.classList.add('fading');
+      setTimeout(doSwap, 80);
+    } else {
+      doSwap();
+    }
   }
 
   function nav(href) { return () => { location.href = href; }; }
@@ -440,7 +451,9 @@ function initCommandPalette() {
     return () => { sessionStorage.setItem('tb_cmd_new', key); location.href = href; };
   }
 
-  function renderDefault() {
+  function renderDefault(fromSearch) {
+    const fade = fromSearch && cmdMode !== 'default';
+    cmdMode = 'default';
     renderItems([
       { label: 'Navigate', items: [
         { icon: 'dashboard', label: 'Dashboard',    hint: 'Go to', action: nav('index.html') },
@@ -459,10 +472,12 @@ function initCommandPalette() {
         { icon: 'plus', label: 'New Invoice',  hint: 'Create', action: navNew('invoices.html',  'invoice') },
         { icon: 'plus', label: 'New Quote',    hint: 'Create', action: navNew('quotes.html',    'quote') },
       ]},
-    ]);
+    ], fade);
   }
 
   function renderSearch(q) {
+    const fade = cmdMode !== 'search';
+    cmdMode = 'search';
     const lq = q.toLowerCase();
     const sections = [];
 
@@ -505,17 +520,26 @@ function initCommandPalette() {
     if (qts.length) sections.push({ label: 'Quotes', items: qts });
 
     if (!sections.length) {
-      items = [];
-      body.innerHTML = `<div class="cmd-empty">No results for "${escHtml(q)}"</div>`;
+      if (fade) {
+        body.classList.add('fading');
+        setTimeout(() => {
+          items = [];
+          body.innerHTML = `<div class="cmd-empty">No results for "${escHtml(q)}"</div>`;
+          body.classList.remove('fading');
+        }, 80);
+      } else {
+        items = [];
+        body.innerHTML = `<div class="cmd-empty">No results for "${escHtml(q)}"</div>`;
+      }
       return;
     }
-    renderItems(sections);
-    setSelected(0);
+    renderItems(sections, fade);
+    setTimeout(() => setSelected(0), fade ? 90 : 0);
   }
 
   input.addEventListener('input', () => {
     const q = input.value.trim();
-    q ? renderSearch(q) : renderDefault();
+    q ? renderSearch(q) : renderDefault(true);
   });
 
   input.addEventListener('keydown', e => {
